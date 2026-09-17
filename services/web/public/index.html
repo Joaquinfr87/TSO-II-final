@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intranet — sudoers.lan</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --surface: #161a22;
+            --border: #262d3a;
+            --text: #e6e9ef;
+            --muted: #8b93a3;
+            --accent: #58a6ff;
+            --mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header .brand { font-weight: 600; letter-spacing: -0.01em; }
+        header code { color: var(--muted); font-family: var(--mono); font-size: 0.85rem; }
+        main { flex: 1; max-width: 860px; margin: 0 auto; padding: 3rem 2rem; width: 100%; }
+        h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 650; letter-spacing: -0.03em; }
+        p.lead { color: var(--muted); margin: 0.75rem 0 2rem; line-height: 1.6; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+        a.card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            color: var(--text);
+            text-decoration: none;
+            transition: border-color 0.2s, transform 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+        .card .t { font-weight: 600; font-size: 1rem; }
+        .card .desc { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+        .card .url { color: var(--accent); font-family: var(--mono); font-size: 0.8rem; margin-top: 0.5rem; }
+        footer { border-top: 1px solid var(--border); padding: 1rem 2rem; color: var(--muted); font-size: 0.8rem; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+    <header>
+        <span class="brand">Intranet</span>
+        <code>sudoers.lan</code>
+    </header>
+    <main>
+        <h1>Servicios de la organización</h1>
+        <p class="lead">Portal web de la infraestructura. Los servicios se publican por nombre a trav&eacute;s del proxy inverso.</p>
+        <div class="grid">
+            <a class="card" href="http://web.sudoers.lan">
+                <span class="t">Sitio principal</span>
+                <span class="desc">Acceso por IP o nombre del servidor.</span>
+                <span class="url">web.sudoers.lan</span>
+            </a>
+            <a class="card" href="http://portainer.sudoers.lan">
+                <span class="t">Gesti&oacute;n Docker</span>
+                <span class="desc">Panel web para administrar contenedores, im&aacute;genes y vol&uacute;menes.</span>
+                <span class="url">portainer.sudoers.lan</span>
+            </a>
+            <a class="card" href="http://print.sudoers.lan">
+                <span class="t">Impresi&oacute;n</span>
+                <span class="desc">Servidor CUPS e impresora virtual PDF.</span>
+                <span class="url">print.sudoers.lan</span>
+            </a>
+            <a class="card" href="http://webmail.sudoers.lan">
+                <span class="t">Webmail</span>
+                <span class="desc">Correo por navegador (Roundcube) — Fase 4.</span>
+                <span class="url">webmail.sudoers.lan</span>
+            </a>
+            <a class="card" href="http://dashboard.sudoers.lan">
+                <span class="t">Monitoreo</span>
+                <span class="desc">Estado del servidor y los servicios — Fase 6.</span>
+                <span class="url">dashboard.sudoers.lan</span>
+            </a>
+        </div>
+    </main>
+    <footer>
+        <span>Infraestructura IT — todo Linux</span>
+        <code>Red 192.168.0.0/24 · DC: dc1.sudoers.lan</code>
+    </footer>
+</body>
+</html>

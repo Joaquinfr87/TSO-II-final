@@ -1,0 +1,161 @@
+# docker-compose.yml — Servicios contenedor (TSO-II-final)
+#
+# Declara los servicios que corren en contenedores. El DC de Samba
+# (Samba 4) corre NATIVO fuera de Docker → carpeta dc/.
+#
+# Uso:
+#   cp .env.example .env
+#   docker compose up -d --build
+#   docker compose up -d <servicio>
+#
+# Reglas NO negociables (ver AGENTS.md):
+#   * Puertos del DC (53, 88, 389, 445, 139, 636) NO se publican acá.
+#   * Kea (dhcp) requiere network_mode: host (broadcast 67/udp).
+#   * No hay services/dns ni services/files: DNS y SMB los da el DC.
+
+name: tso-it
+
+services:
+  # ------------------------------------------------------------------
+  # DHCP (Kea) — host network obligatorio (BOOTP usa broadcast)
+  # ------------------------------------------------------------------
+  dhcp:
+    build: ./services/dhcp
+    container_name: tso-dhcp
+    # BOOTP/DHCP no funciona mapeando 67/udp por bridge; Kea escucha en
+    # las interfaces físicas del host. No lleva ports: ni networks:.
+    network_mode: host
+    environment:
+      DHCP_SUBNET: ${DHCP_SUBNET:-192.168.0.0/24}
+      DHCP_POOL: ${DHCP_POOL:-192.168.0.100 - 192.168.0.199}
+      DHCP_DNS: ${DHCP_DNS:-192.168.0.10}
+      DHCP_GATEWAY: ${DHCP_GATEWAY:-192.168.0.1}
+      DHCP_NTP: ${DHCP_NTP:-192.168.0.10}
+      DNS_DOMAIN: ${DNS_DOMAIN:-sudoers.lan}
+    volumes:
+      - dhcp_state:/var/lib/kea
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Web / Proxy inverso (Nginx) — *.sudoers.lan
+  # ------------------------------------------------------------------
+  web:
+    build: ./services/web
+    container_name: tso-web
+    ports:
+      - "80:80"          # HTTPS (443) se suma en Fase 5 con CA interna
+    volumes:
+      - ${WEB_SITE_DIR:-./services/web/public}:/usr/share/nginx/html:ro
+    networks:
+      - tso-net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Correo (Postfix + Dovecot)
+  # ------------------------------------------------------------------
+  mail:
+    build: ./services/mail
+    container_name: tso-mail
+    ports:
+      - "25:25"        # SMTP (transferencia entre servidores)
+      - "587:587"      # SMTP Submission (clientes con auth)
+      - "110:110"      # POP3
+      - "143:143"      # IMAP
+      - "993:993"      # IMAPS
+      - "995:995"      # POP3S
+    environment:
+      MAIL_DOMAIN: ${MAIL_DOMAIN:-mail.sudoers.lan}
+      MAIL_USERS: ${MAIL_USERS:-}
+    volumes:
+      - mail_data:/var/mail
+    networks:
+      - tso-net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Base de datos (PostgreSQL)
+  # ------------------------------------------------------------------
+  database:
+    build: ./services/database
+    container_name: tso-db
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tso}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tso}
+      POSTGRES_DB: ${POSTGRES_DB:-tso}
+    volumes:
+      - db_data:/var/lib/postgresql
+    networks:
+      - tso-net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Impresión (CUPS + PDF virtual)
+  # ------------------------------------------------------------------
+  print:
+    build: ./services/print
+    container_name: tso-print
+    ports:
+      - "${CUPS_PORT:-1631}:631"
+    environment:
+      CUPS_ADMIN_USER: ${CUPS_ADMIN_USER:-admin}
+      CUPS_ADMIN_PASS: ${CUPS_ADMIN_PASS:-admin}
+    volumes:
+      - print_output:/var/spool/cups-pdf/OUT
+    networks:
+      - tso-net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Portainer (panel de gestión Docker)
+  # ------------------------------------------------------------------
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: tso-portainer
+    restart: unless-stopped
+    ports:
+      - "8000:8000"                      # Agente Edge / túnel remoto
+      - "${PORTAINER_PORT:-9443}:9443"   # UI web (HTTPS autofirmado)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    networks:
+      - tso-net
+
+  # ------------------------------------------------------------------
+  # EN DESARROLLO (fases posteriores)
+  # ------------------------------------------------------------------
+  # webmail:      Roundcube                     → services/webmail  (Fase 4)
+  # monitoring:   Netdata / Grafana             → services/monitoring (Fase 6)
+  # apps:         apps internas                 → services/apps      (Fase 5)
+  #
+  # Ejemplo de bloque (activar cuando exista la carpeta):
+  #   webmail:
+  #     build: ./services/webmail
+  #     container_name: tso-webmail
+  #     ports:
+  #       - "8081:80"
+  #     networks: [ tso-net ]
+  #     restart: unless-stopped
+  # + server block en services/web/nginx.conf
+
+# Volúmenes con nombre: los datos persisten aunque los contenedores se borren.
+volumes:
+  dhcp_state:
+  mail_data:
+  db_data:
+  print_output:
+  portainer_data:
+
+# Red interna del proyecto (interconexión de contenedores).
+# Kea queda FUERA de esta red (network_mode: host).
+networks:
+  tso-net:
+    driver: bridge
+
+# NOTAS
+# - DNS del dominio lo maneja el DC nativo (SAMBA_INTERNAL), no este compose.
+# - Los recursos SMB los sirve el DC nativo (dc/shares.conf), no un contenedor.
+# - El firewall del host (server/nftables.conf) controla qué puertos se
+#   exponen a la LAN (5432, 9443 y 22 solo para admins).

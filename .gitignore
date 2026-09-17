@@ -1,0 +1,12 @@
+# Entorno local (secretos y configuración por máquina)
+.env
+
+# Datos persistentes de los servicios
+data/
+volumes/
+
+# Logs locales
+*.log
+
+# Sistema
+.DS_Store

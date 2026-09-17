@@ -1,0 +1,56 @@
+# /etc/postfix/main.cf — Configuración de Postfix para sudoers.lan
+
+smtpd_banner = $myhostname ESMTP $mail_name
+biff = no
+append_dot_mydomain = no
+
+# Identidad del servidor
+myhostname = mail.sudoers.lan
+mydomain = sudoers.lan
+myorigin = $mydomain
+
+# Aceptar correo para estos destinos
+mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain
+
+# Sin relay: entregamos directamente (red interna)
+relayhost =
+
+# Redes que pueden usar este servidor como relay (todas las internas)
+mynetworks = 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+
+# Almacenamiento: formato Maildir en el home del usuario
+home_mailbox = Maildir/
+
+# Límites
+mailbox_size_limit = 0
+recipient_delimiter = +
+
+# Escuchar en todas las interfaces
+inet_interfaces = all
+inet_protocols = ipv4
+
+# ---- SASL (autenticación via Dovecot) ----
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $myhostname
+
+# ---- Restricciones de envío ----
+# Solo usuarios autenticados pueden enviar
+smtpd_recipient_restrictions =
+    permit_sasl_authenticated,
+    permit_mynetworks,
+    reject_unauth_destination
+
+# Habilitar STARTTLS
+smtpd_use_tls = yes
+smtpd_tls_cert_file = /etc/ssl/certs/mail.pem
+smtpd_tls_key_file = /etc/ssl/private/mail.key
+smtpd_tls_security_level = may
+
+# TLS para conexiones salientes
+smtp_tls_security_level = may
+
+# Logging a archivo (Docker captura stdout/stderr)
+maillog_file = /var/log/mail.log

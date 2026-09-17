@@ -1,0 +1,44 @@
+# ===================================================================
+# sshd_config — SSH Hardening del servidor
+# ===================================================================
+# Aplicar en el servidor:
+#   sudo cp sshd_config /etc/ssh/sshd_config
+#   sudo systemctl restart ssh
+#
+# IMPORTANTE ANTES DE APLICAR:
+#   1) Cada admin debe subir su clave pública primero:
+#      ssh-copy-id joaquin@192.168.0.10   (en cada notebook)
+#   2) Verificar que se puede entrar con la clave NUEVA en OTRA
+#      terminal antes de reiniciar ssh (para no quedar afuera).
+# ===================================================================
+
+# ─── Acceso ───
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+AuthenticationMethods publickey
+AllowUsers joaquin david nicolas
+
+# ─── Límites de sesión ───
+MaxAuthTries 3
+LoginGraceTime 30
+MaxSessions 5
+
+# ─── Keepalive ───
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# ─── Deshabilitar forwarding innecesario ───
+AllowTcpForwarding no
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+GatewayPorts no
+
+# ─── Logging ───
+LogLevel VERBOSE
+SyslogFacility AUTH
+
+# ─── Puerto y red ───
+Port 22
+ListenAddress 192.168.0.10

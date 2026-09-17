@@ -1,0 +1,116 @@
+#!/bin/bash
+set -euo pipefail
+# ============================================================
+# provision.sh — Instala y provisiona un Samba 4 AD DC (NATIVO)
+#
+# Requisitos previos en el server:
+#   * Debian 12+ (bookworm/trixie), usuario con sudo/root
+#   * IP fija 192.168.0.10  y  hostname = dc1
+#   * El hostname NUNCA debe resolverse a 127.0.0.1 (requisito Samba)
+#
+# Uso:
+#   ADMIN_PASS='...' sudo bash dc/provision.sh
+#   (si no pasás ADMIN_PASS, te la pide por prompt)
+# ============================================================
+
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ---------- Parámetros (ajustables por env) ----------
+REALM="${REALM:-SUDOERS.LAN}"
+DOMAIN="${DOMAIN:-sudoers.lan}"
+NETBIOS="${NETBIOS:-SUDOERS}"
+DC_FQDN="${DC_FQDN:-dc1}"
+IP_SERVER="${IP_SERVER:-192.168.0.10}"
+DNS_FORWARDER="${DNS_FORWARDER:-192.168.0.1}"
+
+export DEBIAN_FRONTEND=noninteractive
+
+if [ -n "${ADMIN_PASS:-}" ]; then
+    ADMIN_PASS_ARG="--adminpass=${ADMIN_PASS}"
+else
+    read -r -s -p "Password del administrador de dominio (administrator): " ADMIN_PASS
+    echo
+    [ -n "${ADMIN_PASS}" ] || { echo "ERROR: password vacía."; exit 1; }
+    ADMIN_PASS_ARG="--adminpass=${ADMIN_PASS}"
+fi
+
+echo "==> [1/7] hostname y /etc/hosts"
+hostnamectl set-hostname "${DC_FQDN}"
+# El DC debe resolverse por su IP de LAN, nunca por 127.0.0.1
+sed -i "/[[:space:]]${DC_FQDN}\.${DOMAIN}/d;/[[:space:]]${DC_FQDN}[[:space:]]\?$/d" /etc/hosts
+grep -qx "${IP_SERVER} ${DC_FQDN}.${DOMAIN} ${DC_FQDN}" /etc/hosts \
+    || sed -i "1i ${IP_SERVER} ${DC_FQDN}.${DOMAIN} ${DC_FQDN}" /etc/hosts
+grep -q "^127.0.0.1.*${DC_FQDN}" /etc/hosts && \
+    sed -i "s/^127.0.0.1.*/${DC_FQDN}/d" /etc/hosts
+hostnamectl set-location "${DOMAIN}" 2>/dev/null || true
+
+echo "==> [2/7] instalando paquetes (samba, kerberos, chrony)"
+apt-get update
+apt-get install -y --no-install-recommends \
+    samba \
+    krb5-user \
+    krb5-config \
+    chrony \
+    dnsutils \
+    acl \
+    attr \
+    smbclient
+
+echo "==> [3/7] /etc/krb5.conf"
+cat > /etc/krb5.conf <<EOF
+[libdefaults]
+    default_realm = ${REALM}
+    dns_lookup_realm = false
+    dns_lookup_kdc = true
+    ticket_lifetime = 24h
+    renew_lifetime = 7d
+    forwardable = true
+EOF
+
+echo "==> [4/7] provision del dominio"
+if [ -f /etc/samba/smb.conf ]; then
+    cp -a /etc/samba/smb.conf "/etc/samba/smb.conf.bak.$(date +%Y%m%d%H%M%S)"
+    echo "    respaldo del smb.conf previo guardado"
+fi
+
+samba-tool domain provision \
+    --realm="${REALM}" \
+    --domain="${NETBIOS}" \
+    ${ADMIN_PASS_ARG} \
+    --server-role=dc \
+    --dns-backend=SAMBA_INTERNAL \
+    --use-rfc2307 \
+    --host-name="${DC_FQDN}" \
+    --host-ip="${IP_SERVER}" \
+    --option="dns forwarder = ${DNS_FORWARDER}"
+
+echo "==> [5/7] recursos de archivo (shares AD)"
+mkdir -p /srv/samba/departamentos /srv/samba/homes /srv/samba/respaldo
+cp "${SCRIPTS_DIR}/shares.conf" /etc/samba/shares.conf
+grep -qx 'include = /etc/samba/shares.conf' /etc/samba/smb.conf \
+    || echo "include = /etc/samba/shares.conf" >> /etc/samba/smb.conf
+chmod 1777 /srv/samba/respaldo
+echo "    shares.conf incluido en /etc/samba/smb.conf"
+
+echo "==> [6/7] servicios del DC"
+systemctl enable --now samba
+systemctl disable --now smbd nmbd winbind 2>/dev/null || true
+echo "    samba activo (smbd/nmbd/winbind deshabilitados: los maneja 'samba')"
+
+echo "==> [7/7] resumen"
+echo "============================================"
+echo "  DC provisionado"
+echo "  Realm:      ${REALM}"
+echo "  DC:         ${DC_FQDN}.${DOMAIN}  (${IP_SERVER})"
+echo "  DNS:        SAMBA_INTERNAL (zona ${DOMAIN})"
+echo "  Compartidos: departamentos, homes, respaldo  (/srv/samba/)"
+echo ""
+echo "  Probar:"
+echo "    sudo kinit administrator     # pedirá la password de admin"
+echo "    sudo klist                   # ticket Kerberos"
+echo "    smbclient -L dc1 -U administrator   # lista shares"
+echo ""
+echo "  Siguientes pasos:"
+echo "    sudo bash dc/add-users-groups.sh"
+echo "    sudo bash dc/password-policy.sh"
+echo "============================================"
