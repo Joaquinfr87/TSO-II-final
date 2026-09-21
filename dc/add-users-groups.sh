@@ -12,7 +12,9 @@ set -euo pipefail
 
 # ---------- Grupos de seguridad de la organización ----------
 # (el sufijo srv-* agrupa "servicios" y se usa en los shares)
-GROUPS=(
+# OJO: no usar el nombre "GROUPS": es variable reservada de bash con los
+# GIDs del usuario actual y no se puede reasignar.
+AD_GROUPS=(
     "admins"        # gestión del server, SSH, sudo
     "sistemas"      # soporte / mantenimiento
     "contabilidad"  # PCs Windows con software contable
@@ -58,7 +60,7 @@ MEMBERSHIPS=(
 
 echo "==> Grupos"
 GROUP_LIST=$(samba-tool group list 2>/dev/null || true)
-for g in "${GROUPS[@]}"; do
+for g in "${AD_GROUPS[@]}"; do
     if echo "$GROUP_LIST" | grep -qx "$g"; then
         echo "    ok: $g"
     else
