@@ -48,6 +48,7 @@ echo "==> [2/7] instalando paquetes (samba, kerberos, chrony)"
 apt-get update
 apt-get install -y --no-install-recommends \
     samba \
+    samba-ad-dc \
     krb5-user \
     krb5-config \
     chrony \
