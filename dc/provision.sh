@@ -57,6 +57,12 @@ apt-get install -y --no-install-recommends \
     acl \
     attr \
     smbclient
+# Al instalar el paquete 'samba', Debian arranca smbd/nmbd/winbind como
+# server standalone y chocan con el daemon del DC. Se detienen y
+# desactivan YA (el DC los maneja interno; pidfiles no deben quedar).
+systemctl stop smbd nmbd winbind 2>/dev/null || true
+rm -f /run/samba/smbd.pid /run/samba/nmbd.pid /run/samba/winbindd.pid
+systemctl disable smbd nmbd winbind 2>/dev/null || true
 
 echo "==> [3/7] /etc/krb5.conf"
 cat > /etc/krb5.conf <<EOF
