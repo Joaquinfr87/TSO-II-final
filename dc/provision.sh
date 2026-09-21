@@ -49,6 +49,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
     samba \
     samba-ad-dc \
+    samba-ad-provision \
     krb5-user \
     krb5-config \
     chrony \
