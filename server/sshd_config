@@ -7,7 +7,7 @@
 #
 # IMPORTANTE ANTES DE APLICAR:
 #   1) Cada admin debe subir su clave pública primero:
-#      ssh-copy-id joaquin@192.168.0.10   (en cada notebook)
+#      ssh-copy-id joaquin@192.168.0.2   (en cada notebook)
 #   2) Verificar que se puede entrar con la clave NUEVA en OTRA
 #      terminal antes de reiniciar ssh (para no quedar afuera).
 # ===================================================================
@@ -41,4 +41,4 @@ SyslogFacility AUTH
 
 # ─── Puerto y red ───
 Port 22
-ListenAddress 192.168.0.10
+ListenAddress 192.168.0.2

@@ -19,11 +19,27 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 
 - **UNA sola red plana:** `192.168.0.0/24`. La antigua `192.168.20.0/24` del
   lab quedó **descartada** (no hay control sobre esa red).
-- **Server / DC:** ip fija `192.168.0.10`, hostname `dc1` → `dc1.sudoers.lan`.
+- **Router:** TP-Link **TL-WR850N** (firmware 3.16.0), IP `192.168.0.1`,
+  maneja la red y es la puerta de enlace. Su DHCP **se desactiva** cuando Kea
+  tome el servicio (evita DHCP doble).
+- **Server / DC:** ip fija **`192.168.0.2`** (conectado **por cable** al
+  router), hostname `dc1` → `dc1.sudoers.lan`. La IP `192.168.0.10` del
+  diseño original quedó descartada.
 - **DHCP (Kea):** pool dinámico `192.168.0.100–199`; reservas `.1–.49`
-  infraestrutura, `.50–.99` equipos fijos. Entrega como **DNS = 192.168.0.10**,
-  dominio `sudoers.lan`, NTP `192.168.0.10`.
+  infraestructura, `.50–.99` equipos fijos (impresoras, PCs admin, cajas).
+  Entrega como **DNS = 192.168.0.2**, dominio `sudoers.lan`, gateway
+  `192.168.0.1`, NTP `192.168.0.2`.
+- **Reservas por MAC:** se configuran en `.env` → `DHCP_RESERVATIONS`
+  (formato `"MAC=IP=hostname;…"`), que el entrypoint de Kea convierte a
+  reservas del subnet. Los PCs de los admins ocupan `.50–.52` (coincide con
+  `admin_ips` del firewall).
 - **AD:** dominio/realm `SUDOERS.LAN`, NetBIOS `SUDOERS`, Kerberos realm `SUDOERS.LAN`.
+
+## Usuarios (AD)
+
+- **Admins:** `joaquin`, `nicolas`, `david` (grupo `admins` + `sistemas`).
+- **Usuarios de prueba:** `grupo2`, `grupo3`, …, `grupo9` (grupo `oficina`).
+  Se crean con `dc/add-users-groups.sh`, idempotente.
 
 ## Reglas técnicas que NO se negocian
 

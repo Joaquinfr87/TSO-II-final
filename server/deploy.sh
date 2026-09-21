@@ -69,7 +69,7 @@ echo "  Deploy completado."
 echo "  * Firewall nftables: tabla inet filter aplicada y habilitada"
 echo "  * SSH: config endurecida (claves, sin root, solo admins)"
 echo "  * Chrony: sirviendo hora a 192.168.0.0/24"
-echo "  * Probar en OTRA terminal: ssh joaquin@192.168.0.10"
+echo "  * Probar en OTRA terminal: ssh joaquin@192.168.0.2"
 echo
 echo "  Si los contenedores pierden red tras aplicar el firewall,"
 echo "  reiniciar Docker (recrea sus cadenas):"

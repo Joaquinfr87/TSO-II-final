@@ -28,9 +28,10 @@ services:
     environment:
       DHCP_SUBNET: ${DHCP_SUBNET:-192.168.0.0/24}
       DHCP_POOL: ${DHCP_POOL:-192.168.0.100 - 192.168.0.199}
-      DHCP_DNS: ${DHCP_DNS:-192.168.0.10}
+      DHCP_DNS: ${DHCP_DNS:-192.168.0.2}
       DHCP_GATEWAY: ${DHCP_GATEWAY:-192.168.0.1}
-      DHCP_NTP: ${DHCP_NTP:-192.168.0.10}
+      DHCP_NTP: ${DHCP_NTP:-192.168.0.2}
+      DHCP_RESERVATIONS: ${DHCP_RESERVATIONS:-}
       DNS_DOMAIN: ${DNS_DOMAIN:-sudoers.lan}
     volumes:
       - dhcp_state:/var/lib/kea

@@ -37,8 +37,28 @@ host) y **no** tiene bloque `ports:` ni `networks:`.
 | Reservas | `192.168.0.50 – .99` | Equipos fijos (contabilidad, marketing, cajas) |
 | Pool | `192.168.0.100 – .199` | Resto de clientes |
 
-Opciones entregadas: **DNS = 192.168.0.10** (el DC), **dominio = sudoers.lan**,
-**NTP = 192.168.0.10** (el DC), **gateway = 192.168.0.1** (el router).
+Opciones entregadas: **DNS = 192.168.0.2** (el DC), **dominio = sudoers.lan**,
+**NTP = 192.168.0.2** (el DC), **gateway = 192.168.0.1** (router TP-Link).
+
+### Reservas DHCP por MAC
+
+Se configuran en `.env` con `DHCP_RESERVATIONS` (formato
+`"MAC=IP=hostname;…"`). El entrypoint las convierte al array `reservations`
+del subnet de Kea:
+
+```bash
+DHCP_RESERVATIONS="aa:bb:cc:dd:ee:01=192.168.0.50=pc-joaquin;aa:bb:cc:dd:ee:02=192.168.0.51=pc-nicolas"
+```
+
+Los PCs de los admins ocupan `.50–.52` (coincide con `admin_ips` del
+firewall). Verificar concesiones tras el cambio:
+
+```bash
+docker compose exec dhcp cat /var/lib/kea/kea-leases4.csv
+```
+
+> Cuando Kea toma el servicio, **apagar el DHCP del router** (TP-Link) para
+> evitar doble concesión.
 
 ## Variables de entorno
 
@@ -46,15 +66,16 @@ Opciones entregadas: **DNS = 192.168.0.10** (el DC), **dominio = sudoers.lan**,
 | --- | --- | --- |
 | `DHCP_SUBNET` | `192.168.0.0/24` | Red que atiende Kea |
 | `DHCP_POOL` | `192.168.0.100 - 192.168.0.199` | Rango que entrega |
-| `DHCP_DNS` | `192.168.0.10` | DNS anunciado a los clientes (el DC) |
+| `DHCP_DNS` | `192.168.0.2` | DNS anunciado a los clientes (el DC) |
 | `DHCP_GATEWAY` | `192.168.0.1` | Puerta de enlace (`routers`) |
-| `DHCP_NTP` | `192.168.0.10` | Servidor NTP (el DC) |
+| `DHCP_NTP` | `192.168.0.2` | Servidor NTP (el DC) |
+| `DHCP_RESERVATIONS` | (vacío) | Reservas por MAC: `MAC=IP=hostname;…` |
 | `DNS_DOMAIN` | `sudoers.lan` | Dominio interno |
 
 ## Verificación
 
 ```bash
-docker compose logs dhcp                      # resume subred/pool/DNS/NTP
+docker compose logs dhcp                      # resume subred/pool/DNS/NTP/reservas
 docker compose exec dhcp cat /var/lib/kea/kea-leases4.csv   # concesiones
 sudo dhclient -v <iface>                      # en un cliente de la LAN
 ```
@@ -63,7 +84,7 @@ sudo dhclient -v <iface>                      # en un cliente de la LAN
 
 - [x] Imagen + entrypoint con tokens (subnet/pool/dns/dominio/gateway/ntp)
 - [x] `network_mode: host` declarado en el compose
-- [ ] Reservas por MAC de equipos fijos (Fase 2, agregar en `.env`/`kea-dhcp4.conf`)
+- [x] Reservas por MAC vía `DHCP_RESERVATIONS` en el `.env`
 - [ ] DDNS hacia el DC (registros A de los clientes) si se necesita
 
 ## Referencias

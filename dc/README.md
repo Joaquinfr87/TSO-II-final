@@ -21,8 +21,8 @@ dc/
 
 ## Requisitos previos (Fase 0)
 
-- Debian instalado con **IP fija** `192.168.0.10` y **hostname `dc1`**.
-- `/etc/hosts` debe mapear `dc1.sudoers.lan → 192.168.0.10` (NUNCA a 127.0.0.1).
+- Debian instalado con **IP fija** `192.168.0.2` y **hostname `dc1`**.
+- `/etc/hosts` debe mapear `dc1.sudoers.lan → 192.168.0.2` (NUNCA a 127.0.0.1).
 - nftables + sshd endurecidos aplicados (`server/`).
 - El **router** no debe ocupar puertos del DC (53/88/389/445/139/636).
 
@@ -69,7 +69,7 @@ crean subcarpetas dentro de `[departamentos]` y se setean ACL con
 
 - **Puertos del DC** (53, 88, 389, 445, 139, 636) no se re-publican en
   contenedores. No hay `services/dns` ni `services/files`: DNS y SMB los da el DC.
-- El DC **es DNS** → los clientes apuntan a `192.168.0.10` (lo entrega Kea).
+- El DC **es DNS** → los clientes apuntan a `192.168.0.2` (lo entrega Kea).
 - NTP: el mismo host corre **chrony** (`server/chrony.conf`); los clientes
   sincronizan contra él.
 - GPO: Samba soporta un subconjunto; no es un AD de Windows completo.

@@ -24,12 +24,21 @@ GROUPS=(
 )
 
 # ---------- Usuarios iniciales ----------
-# Formato: "usuario"                    → se pide la password
-#          "usuario:PasswordInicial"    → crea con esa password
+# Formato: "usuario"                  → se pide la password
+#          "usuario:PasswordInicial"  → crea con esa password
 USERS=(
     "joaquin:CambiarMe!2026"
     "david:CambiarMe!2026"
     "nicolas:CambiarMe!2026"
+    # Usuarios de prueba (grupo2..grupo9) en "oficina"
+    "grupo2:CambiarMe!2026"
+    "grupo3:CambiarMe!2026"
+    "grupo4:CambiarMe!2026"
+    "grupo5:CambiarMe!2026"
+    "grupo6:CambiarMe!2026"
+    "grupo7:CambiarMe!2026"
+    "grupo8:CambiarMe!2026"
+    "grupo9:CambiarMe!2026"
 )
 
 # Miembros por grupo (usuario -> grupos separados por comas)
@@ -37,6 +46,14 @@ MEMBERSHIPS=(
     "joaquin:admins,sistemas,srv-files"
     "david:admins,sistemas,srv-files"
     "nicolas:admins,sistemas,srv-dba"
+    "grupo2:oficina"
+    "grupo3:oficina"
+    "grupo4:oficina"
+    "grupo5:oficina"
+    "grupo6:oficina"
+    "grupo7:oficina"
+    "grupo8:oficina"
+    "grupo9:oficina"
 )
 
 echo "==> Grupos"

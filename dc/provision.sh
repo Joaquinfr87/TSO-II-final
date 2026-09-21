@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Requisitos previos en el server:
 #   * Debian 12+ (bookworm/trixie), usuario con sudo/root
-#   * IP fija 192.168.0.10  y  hostname = dc1
+#   * IP fija 192.168.0.2  y  hostname = dc1
 #   * El hostname NUNCA debe resolverse a 127.0.0.1 (requisito Samba)
 #
 # Uso:
@@ -20,7 +20,7 @@ REALM="${REALM:-SUDOERS.LAN}"
 DOMAIN="${DOMAIN:-sudoers.lan}"
 NETBIOS="${NETBIOS:-SUDOERS}"
 DC_FQDN="${DC_FQDN:-dc1}"
-IP_SERVER="${IP_SERVER:-192.168.0.10}"
+IP_SERVER="${IP_SERVER:-192.168.0.2}"
 DNS_FORWARDER="${DNS_FORWARDER:-192.168.0.1}"
 
 export DEBIAN_FRONTEND=noninteractive

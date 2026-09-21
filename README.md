@@ -5,7 +5,7 @@ Infraestructura IT de la organización sobre **una sola máquina Debian**:
 **contenedores Docker** (heredados del lab `TSO-II`). Clientes Linux
 (SSSD + AD) con unas pocas Windows para contabilidad/marketing.
 
-Red: **una sola red `192.168.0.0/24`** — server `192.168.0.10`
+Red: **una sola red `192.168.0.0/24`** — server `192.168.0.2`, gateway router `192.168.0.1`
 
 ## Documentación
 

@@ -47,7 +47,7 @@ sudo cp /etc/chrony/chrony.conf.bak.<ts> /etc/chrony/chrony.conf && sudo systemc
 
 ## Interacción con el DC
 
-- El host y el DC son la **misma máquina** (`dc1.sudoers.lan` / 192.168.0.10).
+- El host y el DC son la **misma máquina** (`dc1.sudoers.lan` / 192.168.0.2).
 - Chrony del host = NTP que sirve el DC (Kerberos exige reloj sincronizado).
 - Puertos del DC nativo (53, 88, 389, 445, 139) quedan abiertos solo a la LAN
   en este firewall; los contenedores no los re-publican.

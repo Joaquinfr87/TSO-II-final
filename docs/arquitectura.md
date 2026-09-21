@@ -109,11 +109,13 @@ no hay control del acceso.
 
 | Red | Uso | IP del server (fija) |
 | --- | --- | --- |
-| `192.168.0.0/24` | Admin + usuarios + clientes (todo) | `192.168.0.10` |
+| `192.168.0.0/24` | Admin + usuarios + clientes (todo) | `192.168.0.2` |
 
-> La dirección `192.168.0.10` es la del DC y la que reciben los clientes como
-> DNS por DHCP. Todo hostname del DC apunta a esa IP de LAN (nunca a
-> `127.0.0.1`) — requisito de Samba AD.
+El router (TP-Link **TL-WR850N**) es la puerta de enlace en `192.168.0.1` y
+maneja la red. La IP `192.168.0.2` es la del DC (server conectado **por
+cable** al router) y la que reciben los clientes como DNS por DHCP. Todo
+hostname del DC apunta a esa IP de LAN (nunca a `127.0.0.1`) — requisito de
+Samba AD.
 
 ### Rango de DHCP (Kea, modo host network)
 
@@ -123,8 +125,16 @@ no hay control del acceso.
 | Reservas | `192.168.0.50 – .99` | Equipos fijos (PC contabilidad, marketing, cajas) |
 | Pool dinámico | `192.168.0.100 – .199` | Resto de clientes |
 
-Opciones DHCP entregadas: **gateway**, **DNS = 192.168.0.10**,
-**dominio = sudoers.lan**, **NTP = 192.168.0.10**.
+Opciones DHCP entregadas: **gateway = 192.168.0.1** (router TP-Link),
+**DNS = 192.168.0.2**, **dominio = sudoers.lan**, **NTP = 192.168.0.2**.
+
+### Reservas DHCP por MAC (Kea)
+
+Se declaran en `.env` → `DHCP_RESERVATIONS` con el formato
+`"MAC=IP=hostname;…"` (los admins ocupan `.50–.52` para coincidir con
+`admin_ips` del firewall). El entrypoint de Kea convierte esa variable al
+array `reservations` del subnet. Cuando Kea toma el servicio, **se apaga el
+DHCP del router** para no duplicar concesiones.
 
 > **Ojo (lección del lab):** Kea recibe el pool *host network* en Docker
 > (`network_mode: host`). BOOTP/DHCP usa *broadcast* en `67/udp`, que no
@@ -319,8 +329,8 @@ firewall del host y en la autenticación AD:
 ## 14. Plan de implementación (fases)
 
 **Fase 0 — Base del server.** Debian instalado, hostname `dc1`, IP fija
-`192.168.0.10`, `sshd` endurecido, nftables, chrony, `unattended-upgrades`.
-Repo `TSO-II-final` clonado.
+`192.168.0.2` (cable al router TP-Link `192.168.0.1`), `sshd` endurecido,
+nftables, chrony, `unattended-upgrades`. Repo `TSO-II-final` clonado.
 
 **Fase 1 — Controlador de dominio.** `samba-tool domain provision` (realm
 `SUDOERS.LAN`), DNS interno AD funcionando, zona `sudoers.lan` resolviendo.

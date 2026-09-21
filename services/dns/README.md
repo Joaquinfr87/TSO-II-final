@@ -27,8 +27,8 @@ Se puede agregar un `dnsmasq` o un Bind9 como **forwarder/caché** del DC
 ## Verificación del DNS provisto por el DC
 
 ```bash
-dig @192.168.0.10 sudoers.lan
-dig @192.168.0.10 _kerberos._udp.sudoers.lan SRV
+dig @192.168.0.2 sudoers.lan
+dig @192.168.0.2 _kerberos._udp.sudoers.lan SRV
 ```
 
 ## Referencias
