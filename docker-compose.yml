@@ -35,7 +35,10 @@ services:
       DNS_DOMAIN: ${DNS_DOMAIN:-sudoers.lan}
     volumes:
       - dhcp_state:/var/lib/kea
-    restart: unless-stopped
+    # CRÍTICO: Kea da las IPs de toda la red → siempre arriba al boot.
+    # 'always' (no 'unless-stopped') garantiza arranque aunque se detenga
+    # manualmente; si arranca antes que la red, Kea reintenta el socket.
+    restart: always
 
   # ------------------------------------------------------------------
   # Web / Proxy inverso (Nginx) — *.sudoers.lan
@@ -49,7 +52,8 @@ services:
       - ${WEB_SITE_DIR:-./services/web/public}:/usr/share/nginx/html:ro
     networks:
       - tso-net
-    restart: unless-stopped
+    # Portal de la intranet → siempre arriba al boot (*)
+    restart: always
 
   # ------------------------------------------------------------------
   # Correo (Postfix + Dovecot)
