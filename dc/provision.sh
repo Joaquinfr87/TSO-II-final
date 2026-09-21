@@ -99,9 +99,15 @@ chmod 1777 /srv/samba/respaldo
 echo "    shares.conf incluido en /etc/samba/smb.conf"
 
 echo "==> [6/7] servicios del DC"
-systemctl enable --now samba
+# En Debian 13+ el DC corre bajo 'samba-ad-dc' (el alias 'samba' de
+# versiones previas dejó de habilitarse). Escogemos el unit disponible.
+SAMBA_UNIT="samba-ad-dc"
+if ! systemctl list-unit-files "${SAMBA_UNIT}.service" >/dev/null 2>&1; then
+    SAMBA_UNIT="samba"
+fi
+systemctl enable --now "${SAMBA_UNIT}"
 systemctl disable --now smbd nmbd winbind 2>/dev/null || true
-echo "    samba activo (smbd/nmbd/winbind deshabilitados: los maneja 'samba')"
+echo "    ${SAMBA_UNIT} activo (smbd/nmbd/winbind deshabilitados: los maneja el DC)"
 
 echo "==> [7/7] resumen"
 echo "============================================"
