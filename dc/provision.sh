@@ -69,9 +69,13 @@ cat > /etc/krb5.conf <<EOF
 EOF
 
 echo "==> [4/7] provision del dominio"
+# Si existe un smb.conf previo (p.ej. el "standalone server" que genera el
+# paquete), se respalda y se retira: samba-tool exige que no exista para
+# generar el del DC (server role = active directory domain controller).
 if [ -f /etc/samba/smb.conf ]; then
-    cp -a /etc/samba/smb.conf "/etc/samba/smb.conf.bak.$(date +%Y%m%d%H%M%S)"
-    echo "    respaldo del smb.conf previo guardado"
+    BAK="/etc/samba/smb.conf.bak.$(date +%Y%m%d%H%M%S)"
+    mv /etc/samba/smb.conf "${BAK}"
+    echo "    smb.conf previo respaldado y retirado (${BAK})"
 fi
 
 samba-tool domain provision \
