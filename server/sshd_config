@@ -13,10 +13,10 @@
 # ===================================================================
 
 # ─── Acceso ───
+# Por ahora: se permite password (las IPs de origen ya están
+# restringidas a admin_ips .50/.51/.52 en el firewall).
 PermitRootLogin no
-PubkeyAuthentication yes
-PasswordAuthentication no
-AuthenticationMethods publickey
+PasswordAuthentication yes
 AllowUsers joaquin david nicolas
 
 # ─── Límites de sesión ───
