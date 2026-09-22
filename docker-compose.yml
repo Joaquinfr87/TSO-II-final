@@ -47,9 +47,13 @@ services:
     build: ./services/web
     container_name: tso-web
     ports:
-      - "80:80"          # HTTPS (443) se suma en Fase 5 con CA interna
+      - "80:80"
+      - "443:443"
     volumes:
       - ${WEB_SITE_DIR:-./services/web/public}:/usr/share/nginx/html:ro
+      # TLS interno (CA + cert wildcard *.sudoers.lan). Generar con:
+      #   sudo bash services/web/tls-gen.sh
+      - ./services/web/tls:/etc/nginx/tls:ro
     networks:
       - tso-net
     # Portal de la intranet → siempre arriba al boot (*)

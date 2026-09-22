@@ -6,12 +6,15 @@
     <title>Intranet — sudoers.lan</title>
     <style>
         :root {
-            --bg: #0f1115;
-            --surface: #161a22;
-            --border: #262d3a;
-            --text: #e6e9ef;
-            --muted: #8b93a3;
-            --accent: #58a6ff;
+            --bg: #0b0e14;
+            --surface: #12161f;
+            --surface2: #181d2a;
+            --border: #232a3a;
+            --text: #e8ecf4;
+            --muted: #8b94a8;
+            --accent: #5ea0ff;
+            --accent2: #7c5cff;
+            --ok: #3fb968;
             --mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,78 +25,264 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            line-height: 1.55;
         }
+        a { color: var(--accent); }
         header {
             border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
+            padding: 0.9rem 2rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            background: rgba(11, 14, 20, 0.9);
+            backdrop-filter: blur(6px);
+            z-index: 5;
         }
-        header .brand { font-weight: 600; letter-spacing: -0.01em; }
-        header code { color: var(--muted); font-family: var(--mono); font-size: 0.85rem; }
-        main { flex: 1; max-width: 860px; margin: 0 auto; padding: 3rem 2rem; width: 100%; }
-        h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 650; letter-spacing: -0.03em; }
-        p.lead { color: var(--muted); margin: 0.75rem 0 2rem; line-height: 1.6; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+        .brand { font-weight: 700; letter-spacing: -0.01em; font-size: 1.05rem; }
+        .brand span { color: var(--accent); }
+        header nav { display: flex; gap: 1.25rem; }
+        header nav a { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+        header nav a:hover { color: var(--text); }
+        header code { color: var(--muted); font-family: var(--mono); font-size: 0.78rem; }
+
+        .hero {
+            padding: 4.5rem 2rem 3rem;
+            text-align: center;
+            background:
+                radial-gradient(600px 240px at 20% 0%, rgba(94,160,255,0.14), transparent),
+                radial-gradient(600px 260px at 80% 10%, rgba(124,92,255,0.12), transparent);
+            border-bottom: 1px solid var(--border);
+        }
+        .hero h1 {
+            font-size: clamp(1.9rem, 5vw, 3rem);
+            font-weight: 750;
+            letter-spacing: -0.03em;
+        }
+        .hero h1 .dot { color: var(--accent); }
+        .hero p.lead {
+            color: var(--muted);
+            margin: 1rem auto 2rem;
+            max-width: 640px;
+        }
+        .badges { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+        .badge {
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 0.4rem 0.85rem;
+            border-radius: 999px;
+        }
+        .badge b { color: var(--text); font-weight: 600; }
+
+        main { flex: 1; }
+        section { max-width: 1080px; margin: 0 auto; padding: 3.5rem 2rem; }
+        section h2 {
+            font-size: 1.2rem;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+            margin-bottom: 0.4rem;
+        }
+        section .sub { color: var(--muted); font-size: 0.92rem; margin-bottom: 1.6rem; }
+
+        .services { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
         a.card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 0.75rem;
-            padding: 1.25rem;
+            border-radius: 0.9rem;
+            padding: 1.3rem 1.4rem;
+            color: var(--text);
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            transition: border-color 0.2s, transform 0.2s, background 0.2s;
+        }
+        a.card:hover { border-color: var(--accent); transform: translateY(-2px); background: var(--surface2); }
+        .card .t { font-weight: 650; font-size: 1.02rem; display: flex; align-items: center; gap: 0.5rem; }
+        .card .ico { font-size: 1.15rem; }
+        .card .desc { color: var(--muted); font-size: 0.86rem; }
+        .card .url { color: var(--accent); font-family: var(--mono); font-size: 0.78rem; margin-top: 0.5rem; opacity: 0.85; }
+        .card .pill {
+            align-self: flex-start;
+            font-size: 0.68rem;
+            font-family: var(--mono);
+            padding: 0.18rem 0.5rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            margin-top: 0.15rem;
+        }
+        .card .pill.done { color: var(--ok); border-color: rgba(63,185,104,0.4); }
+
+        .team { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+        a.member {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.9rem;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 0.5rem;
             color: var(--text);
             text-decoration: none;
             transition: border-color 0.2s, transform 0.2s;
-            display: flex;
-            flex-direction: column;
-            gap: 0.35rem;
         }
-        a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
-        .card .t { font-weight: 600; font-size: 1rem; }
-        .card .desc { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
-        .card .url { color: var(--accent); font-family: var(--mono); font-size: 0.8rem; margin-top: 0.5rem; }
-        footer { border-top: 1px solid var(--border); padding: 1rem 2rem; color: var(--muted); font-size: 0.8rem; display: flex; justify-content: space-between; }
+        a.member:hover { border-color: var(--accent2); transform: translateY(-2px); }
+        .avatar {
+            width: 58px; height: 58px;
+            border-radius: 50%;
+            display: grid; place-items: center;
+            font-weight: 750; font-size: 1.25rem;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .member .name { font-weight: 650; font-size: 1.05rem; }
+        .member .role { color: var(--muted); font-size: 0.85rem; }
+        .member .net { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); }
+
+        .box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.9rem;
+            padding: 1.5rem;
+            font-family: var(--mono);
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .box table { width: 100%; border-collapse: collapse; }
+        .box td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .box tr:last-child td { border-bottom: none; }
+        .box td:first-child { color: var(--text); font-weight: 600; width: 34%; white-space: nowrap; }
+        .box .ok { color: var(--ok); }
+
+        footer { border-top: 1px solid var(--border); padding: 1.2rem 2rem; color: var(--muted); font-size: 0.8rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+        footer code { font-family: var(--mono); }
     </style>
 </head>
 <body>
     <header>
-        <span class="brand">Intranet</span>
-        <code>sudoers.lan</code>
+        <span class="brand">intranet<span>.sudoers.lan</span></span>
+        <nav>
+            <a href="#servicios">Servicios</a>
+            <a href="#equipo">Equipo</a>
+            <a href="#red">Red</a>
+        </nav>
+        <code>dc1 · 192.168.0.2</code>
     </header>
-    <main>
-        <h1>Servicios de la organización</h1>
-        <p class="lead">Portal web de la infraestructura. Los servicios se publican por nombre a trav&eacute;s del proxy inverso.</p>
-        <div class="grid">
-            <a class="card" href="http://web.sudoers.lan">
-                <span class="t">Sitio principal</span>
-                <span class="desc">Acceso por IP o nombre del servidor.</span>
-                <span class="url">web.sudoers.lan</span>
-            </a>
-            <a class="card" href="http://portainer.sudoers.lan">
-                <span class="t">Gesti&oacute;n Docker</span>
-                <span class="desc">Panel web para administrar contenedores, im&aacute;genes y vol&uacute;menes.</span>
-                <span class="url">portainer.sudoers.lan</span>
-            </a>
-            <a class="card" href="http://print.sudoers.lan">
-                <span class="t">Impresi&oacute;n</span>
-                <span class="desc">Servidor CUPS e impresora virtual PDF.</span>
-                <span class="url">print.sudoers.lan</span>
-            </a>
-            <a class="card" href="http://webmail.sudoers.lan">
-                <span class="t">Webmail</span>
-                <span class="desc">Correo por navegador (Roundcube) — Fase 4.</span>
-                <span class="url">webmail.sudoers.lan</span>
-            </a>
-            <a class="card" href="http://dashboard.sudoers.lan">
-                <span class="t">Monitoreo</span>
-                <span class="desc">Estado del servidor y los servicios — Fase 6.</span>
-                <span class="url">dashboard.sudoers.lan</span>
-            </a>
+
+    <div class="hero">
+        <h1>Infraestructura IT de la organización<span class="dot">.</span></h1>
+        <p class="lead">
+            Una sola máquina Debian hace las veces de laboratorio y servidor:
+            dominio Active Directory con <b>Samba 4</b> nativo, y el resto de los
+            servicios en contenedores <b>Docker</b>. 100% Linux, una sola red plana.
+        </p>
+        <div class="badges">
+            <span class="badge">Realm <b>SUDOERS.LAN</b></span>
+            <span class="badge">Red <b>192.168.0.0/24</b></span>
+            <span class="badge">DC <b>dc1.sudoers.lan</b> (192.168.0.2)</span>
+            <span class="badge">Gateway <b>192.168.0.1</b> (TP-Link)</span>
         </div>
+    </div>
+
+    <main>
+        <section id="servicios">
+            <h2>Servicios</h2>
+            <p class="sub">Todo el acceso es por nombre vía proxy inverso Nginx, ahora con TLS (CA interna).</p>
+            <div class="services">
+                <a class="card" href="https://web.sudoers.lan">
+                    <span class="t"><span class="ico">🌐</span> Sitio principal</span>
+                    <span class="desc">Este portal de la intranet, acceso por nombre o IP del servidor.</span>
+                    <span class="url">https://web.sudoers.lan</span>
+                    <span class="pill done">activo</span>
+                </a>
+                <a class="card" href="https://portainer.sudoers.lan">
+                    <span class="t"><span class="ico">🐳</span> Gestión Docker</span>
+                    <span class="desc">Panel web para administrar contenedores, imágenes y volúmenes.</span>
+                    <span class="url">https://portainer.sudoers.lan</span>
+                    <span class="pill done">activo</span>
+                </a>
+                <a class="card" href="https://print.sudoers.lan">
+                    <span class="t"><span class="ico">🖨️</span> Impresión</span>
+                    <span class="desc">Servidor CUPS e impresora virtual PDF para el dominio.</span>
+                    <span class="url">https://print.sudoers.lan</span>
+                    <span class="pill done">activo</span>
+                </a>
+                <a class="card" href="https://webmail.sudoers.lan">
+                    <span class="t"><span class="ico">✉️</span> Webmail</span>
+                    <span class="desc">Correo por navegador (Roundcube) — Fase 4.</span>
+                    <span class="url">https://webmail.sudoers.lan</span>
+                    <span class="pill">en desarrollo</span>
+                </a>
+                <a class="card" href="https://dashboard.sudoers.lan">
+                    <span class="t"><span class="ico">📊</span> Monitoreo</span>
+                    <span class="desc">Estado del servidor y servicios (Netdata/Grafana) — Fase 6.</span>
+                    <span class="url">https://dashboard.sudoers.lan</span>
+                    <span class="pill">en desarrollo</span>
+                </a>
+                <a class="card" href="https://web.sudoers.lan">
+                    <span class="t"><span class="ico">🗄️</span> Datos &amp; Correo</span>
+                    <span class="desc">PostgreSQL + Postfix/Dovecot con autenticación LDAP del AD.</span>
+                    <span class="url">servicios internos</span>
+                    <span class="pill done">activos</span>
+                </a>
+            </div>
+        </section>
+
+        <section id="equipo">
+            <h2>Equipo de administración</h2>
+            <p class="sub">Grupo <code>admins</code> del dominio. Usuarios del area de sistemas con acceso de gestión al server.</p>
+            <div class="team">
+                <a class="member" href="https://joaquin.sudoers.lan">
+                    <span class="avatar">JQ</span>
+                    <span class="name">Joaquin</span>
+                    <span class="role">Diseño de infraestructura · DC, red y DNS</span>
+                    <span class="net">joaquin.sudoers.lan · 192.168.0.50</span>
+                </a>
+                <a class="member" href="https://david.sudoers.lan">
+                    <span class="avatar">DV</span>
+                    <span class="name">David</span>
+                    <span class="role">Administración del dominio · archivos</span>
+                    <span class="net">david.sudoers.lan · 192.168.0.51</span>
+                </a>
+                <a class="member" href="https://nicolas.sudoers.lan">
+                    <span class="avatar">NC</span>
+                    <span class="name">Nicolas</span>
+                    <span class="role">Administración del dominio · base de datos</span>
+                    <span class="net">nicolas.sudoers.lan · 192.168.0.52</span>
+                </a>
+            </div>
+        </section>
+
+        <section id="red">
+            <h2>Plan de red</h2>
+            <p class="sub">Una sola red plana, sin necesidad de VLANs para el volumen actual.</p>
+            <div class="box">
+                <table>
+                    <tr><td>Dirección</td><td>192.168.0.0/24 · única</td></tr>
+                    <tr><td>Gateway</td><td>192.168.0.1 — router TP-Link TL-WR850N (DHCP apagado: lo maneja Kea)</td></tr>
+                    <tr><td>Server / DC</td><td>192.168.0.2 — dc1.sudoers.lan (AD, DNS, DHCP, NTP)</td></tr>
+                    <tr><td>Infraestructura</td><td>. 1 – .49 (reservas de infraestructura)</td></tr>
+                    <tr><td>Equipos fijos</td><td>.50 – .99 (PCs admin .50–.52 y cajas)</td></tr>
+                    <tr><td>Pool dinámico</td><td>.100 – .199 (Kea) · DNS 192.168.0.2 · dominio sudoers.lan</td></tr>
+                    <tr><td>Tiempo (NTP)</td><td>192.168.0.2 (chrony) — sincroniza la LAN y a los clientes del AD</td></tr>
+                    <tr><td>Estado</td><td><span class="ok">●</span> Identidad (AD), DHCP, DNS, web, correo, impresión y archivos operativos</td></tr>
+                </table>
+            </div>
+        </section>
     </main>
+
     <footer>
-        <span>Infraestructura IT — todo Linux</span>
-        <code>Red 192.168.0.0/24 · DC: dc1.sudoers.lan</code>
+        <span>Infraestructura IT · todo Linux · Samba AD DC nativo + servicios Docker</span>
+        <code>sudoers.lan · realm SUDOERS.LAN</code>
     </footer>
 </body>
 </html>

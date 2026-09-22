@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nicolas — Equipo sudoers.lan</title>
+    <style>
+        :root {
+            --bg: #0b0e14; --surface: #12161f; --surface2: #181d2a; --border: #232a3a;
+            --text: #e8ecf4; --muted: #8b94a8; --accent: #e0a458; --accent2: #7c5cff;
+            --ok: #3fb968; --mono: ui-monospace,'SF Mono','Cascadia Code',monospace;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
+        a { color: var(--accent); text-decoration: none; }
+        header { border-bottom: 1px solid var(--border); padding: 0.9rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+        .brand { font-weight: 700; }
+        .brand span { color: var(--accent); }
+        header a.back { color: var(--muted); font-size: 0.88rem; }
+        header a.back:hover { color: var(--text); }
+        .wrap { max-width: 860px; margin: 0 auto; padding: 3rem 2rem; }
+        .headline { display: flex; gap: 1.5rem; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; }
+        .avatar { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 1.7rem; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent2)); flex: 0 0 auto; }
+        .headline h1 { font-size: 1.9rem; letter-spacing: -0.02em; }
+        .headline .role { color: var(--muted); }
+        .headline .role b { color: var(--text); }
+        .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
+        .badge { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); border: 1px solid var(--border); background: var(--surface); padding: 0.3rem 0.75rem; border-radius: 999px; }
+        h2 { font-size: 1.05rem; margin: 2rem 0 0.8rem; letter-spacing: -0.01em; }
+        .box { background: var(--surface); border: 1px solid var(--border); border-radius: 0.9rem; padding: 1.2rem 1.4rem; font-family: var(--mono); font-size: 0.84rem; color: var(--muted); }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        tr:last-child td { border-bottom: none; }
+        td:first-child { color: var(--text); font-weight: 600; width: 32%; white-space: nowrap; }
+        .pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .pill { font-size: 0.74rem; font-family: var(--mono); padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--accent); }
+        ul.tasks { margin: 0.6rem 0 0 1.2rem; color: var(--muted); font-size: 0.92rem; }
+        ul.tasks li { margin: 0.35rem 0; }
+        footer { border-top: 1px solid var(--border); padding: 1.2rem 2rem; color: var(--muted); font-size: 0.8rem; }
+        .ok { color: var(--ok); }
+    </style>
+</head>
+<body>
+    <header>
+        <span class="brand">intranet<span>.sudoers.lan</span></span>
+        <a class="back" href="/">← volver al portal</a>
+    </header>
+
+    <div class="wrap">
+        <div class="headline">
+            <div class="avatar">NC</div>
+            <div>
+                <h1>Nicolas</h1>
+                <div class="role"><b>Admin del dominio</b> · grupo <code>admins</code></div>
+                <div class="badges">
+                    <span class="badge">usuario AD: nicolas</span>
+                    <span class="badge">pc-nicolas · 192.168.0.52</span>
+                </div>
+            </div>
+        </div>
+
+        <h2>Identidad en el dominio</h2>
+        <div class="box">
+            <table>
+                <tr><td>Usuario</td><td>nicolas</td></tr>
+                <tr><td>Grupos AD</td><td><span class="pills"><span class="pill">admins</span><span class="pill">sistemas</span><span class="pill">srv-dba</span></span></td></tr>
+                <tr><td>Acceso SSH</td><td>permitido (AllowUsers) · solo desde admin_ips 192.168.0.52</td></tr>
+                <tr><td>Equipo</td><td>pc-nicolas — 192.168.0.52 (MAC 14:13:33:15:87:9f, reservada en Kea)</td></tr>
+            </table>
+        </div>
+
+        <h2>A cargo</h2>
+        <div class="box">
+            <ul class="tasks">
+                <li>Miembro del grupo <code>sistemas</code> (soporte / mantenimiento del dominio).</li>
+                <li><b>Bases de datos</b> (<code>srv-dba</code>): acceso a PostgreSQL — a diferencia de los demás admin, no tiene <code>srv-files</code>.</li>
+                <li>Administración de servicios críticos del server (DHCP/Kea, proxy Nginx).</li>
+                <li>Supervisión de la plataforma Docker y del correo (Postfix/Dovecot con auth LDAP).</li>
+            </ul>
+        </div>
+    </div>
+
+    <footer>sudoers.lan · realm SUDOERS.LAN · equipo de administración</footer>
+</body>
+</html>

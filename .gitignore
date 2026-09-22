@@ -5,6 +5,9 @@
 data/
 volumes/
 
+# Certs TLS generados para el web (ca + key: NO versionar)
+services/web/tls/
+
 # Logs locales
 *.log
 
