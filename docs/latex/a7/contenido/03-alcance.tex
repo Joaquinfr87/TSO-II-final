@@ -1,8 +1,100 @@
 % ============================================================================
-%  CAPÍTULO II: ALCANCE Y LÍMITES
-%  Contenido pendiente de redacción.
+%  CAPÍTULO II: OBJETIVOS, ALCANCE Y LÍMITES
 % ============================================================================
 
-\section{Alcance y L\'imites}
+\section{Alcance y Límites del Trabajo}
 
-[Escribir aqu\'i el alcance y los l\'imites de la Actividad 7.]
+Para garantizar una adecuada delimitación técnica del proyecto y asegurar el cumplimiento riguroso de los objetivos planteados, a continuación se detallan las configuraciones y servicios implementados (alcance), los aspectos excluidos de la práctica (límites) y la descripción pormenorizada de la infraestructura tecnológica utilizada en el laboratorio.
+
+\subsection{Alcance del Trabajo}
+
+El alcance del presente trabajo comprende el diseño, aprovisionamiento, parametrización y verificación funcional de un Controlador de Dominio de Directorio Activo (\textit{AD DC}) nativo sobre la distribución Debian GNU/Linux 12 (Bookworm). Las tareas y configuraciones incluidas abarcan:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Preparación y configuración del sistema operativo base:}
+    \begin{itemize}
+        \item Asignación y fijación de direccionamiento IP estático (\texttt{192.168.0.2/24}) en la interfaz de red cableada del servidor.
+        \item Configuración del nombre del equipo (\textit{hostname}) y del nombre de dominio completamente calificado (FQDN: \texttt{dc1.sudoers.lan}), garantizando la consistencia en \texttt{/etc/hostname} y \texttt{/etc/hosts}.
+        \item Sincronización temporal estricta mediante el demonio Chrony (NTP), indispensable para mantener la desviación de reloj por debajo de la ventana de tolerancia de 5 minutos exigida por el protocolo Kerberos.
+    \end{itemize}
+
+    \item \textbf{Instalación de paquetes y aprovisionamiento del dominio:}
+    \begin{itemize}
+        \item Instalación de los paquetes requeridos del subsistema Samba 4 (\texttt{samba}, \texttt{smbclient}, \texttt{winbind}, \texttt{krb5-user}, \texttt{libpam-winbind}, \texttt{libnss-winbind}) directamente de manera nativa en el host Debian.
+        \item Promoción del servidor a Controlador de Dominio mediante la herramienta administrativa \texttt{samba-tool domain provision}, estableciendo el reino Kerberos (\textit{realm}) \texttt{SUDOERS.LAN}, el nombre NetBIOS \texttt{SUDOERS} y el nivel funcional del dominio.
+        \item Generación e integración del archivo de configuración del cliente Kerberos (\texttt{/etc/krb5.conf}) sincronizado con el KDC local.
+        \item Configuración del servicio del sistema \texttt{samba-ad-dc} en \textit{systemd}, inhabilitando los demonios heredados e independientes (\texttt{smbd}, \texttt{nmbd}, \texttt{winbind}) para evitar colisiones de puertos y sockets.
+    \end{itemize}
+
+    \item \textbf{Configuración, migración y validación del DNS interno de Active Directory:}
+    \begin{itemize}
+        \item Despliegue del motor DNS interno de Samba (\texttt{SAMBA\_INTERNAL}) asumiendo la autoridad completa de la zona directa \texttt{sudoers.lan} en el puerto estándar 53 (UDP/TCP), en sustitución del servidor BIND 9 independiente de laboratorio.
+        \item Mapeo y resolución de nombres de host (registros A y CNAME) para todos los servicios corporativos de la red (\texttt{web}, \texttt{mail}, \texttt{files}, \texttt{print}, \texttt{dhcp}, \texttt{portainer}, \texttt{ns1}), garantizando la compatibilidad con el esquema de servicios desarrollado en el laboratorio base.
+        \item Configuración del registro de intercambio de correo (\texttt{MX}) con prioridad 10 apuntando a \texttt{mail.sudoers.lan}.
+        \item Habilitación y configuración de reenviadores recursivos (\textit{dns forwarder}) hacia servidores DNS públicos (\texttt{1.1.1.1} y \texttt{8.8.8.8}) para asegurar la resolución de nombres externos de Internet a todas las estaciones de la red.
+    \end{itemize}
+
+    \item \textbf{Gestión de identidades, grupos y políticas de dominio:}
+    \begin{itemize}
+        \item Creación estructurada de cuentas administrativas (\texttt{joaquin}, \texttt{nicolas}, \texttt{david}) y grupos de seguridad (\texttt{admins}, \texttt{sistemas}).
+        \item Creación automatizada de cuentas de usuario estándar y de prueba para áreas departamentales (grupo \texttt{oficina}) mediante scripts idempotentes.
+        \item Definición y aplicación de directivas de contraseñas (\textit{password policy}) del dominio mediante \texttt{samba-tool domain passwordsettings}, fijando longitud mínima, verificación de complejidad y caducidad.
+    \end{itemize}
+
+    \item \textbf{Estructuración de almacenamiento compartido (Shares SMB):}
+    \begin{itemize}
+        \item Configuración de recursos compartidos en \texttt{shares.conf} integrados al archivo maestro \texttt{smb.conf}, incluyendo carpetas departamentales (\texttt{[departamentos]}), directorios personales (\texttt{[homes]}) y áreas de respaldo (\texttt{[respaldo]}).
+        \item Aplicación de permisos a nivel de sistema de archivos POSIX y listas de control de acceso ligadas a los grupos del Directorio Activo.
+    \end{itemize}
+
+    \item \textbf{Pruebas de verificación y evidencia técnica:}
+    \begin{itemize}
+        \item Verificación local de emisión de tickets Kerberos mediante \texttt{kinit} y \texttt{klist}.
+        \item Comprobación exhaustiva de resolución de nombres DNS y registros SRV mediante utilitarios de consulta (\texttt{dig @localhost sudoers.lan}, \texttt{nslookup}, \texttt{host}).
+        \item Verificación de listado y acceso a recursos compartidos con \texttt{smbclient}.
+        \item Pruebas de integración y unión de estaciones cliente (Linux y Windows) al dominio, documentadas mediante capturas de pantalla de consola e interfaces gráficas.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Límites del Trabajo}
+
+Con el fin de mantener el foco técnico y operativo de la actividad dentro de los alcances asignados para la práctica, se establecen los siguientes límites:
+
+\begin{itemize}
+    \item El diseño se restringe a un esquema de controlador único (\textit{Single Domain Controller}), sin implementar replicación multimaestro con Controladores de Dominio Secundarios (BDC) ni Controladores de Solo Lectura (RODC).
+    \item En el diseño final se retira la instancia en contenedor de BIND 9 para evitar conflictos de enlace de puertos en el puerto 53 (UDP/TCP); la autoridad del dominio y la resolución de servicios recae de forma exclusiva en el DNS interno de Samba, descartando el uso del módulo dinámico BIND9\_DLZ.
+    \item Aunque la comunicación interna implementa cifrado y Kerberos nativo, no se despliega una Autoridad Certificadora subordinada empresarial ni certificados firmados por una entidad de certificación pública para emisión masiva de identidades digitales mediante PKI o AD CS.
+    \item No se aborda la federación de identidades ni la integración con servicios de directorio en la nube como Microsoft Entra ID (anteriormente Azure AD Connect) u OpenID Connect/OAuth2 externos.
+    \item La solución no incluye mecanismos de clúster activo-pasivo o activo-activo mediante soluciones como Corosync/Pacemaker o almacenamiento distribuido DRBD.
+    \item Los mecanismos de seguridad se centran en el filtrado de red a nivel de host mediante \textit{nftables} y el endurecimiento del servicio SSH, sin contemplar firewalls de inspección profunda de aplicaciones web (WAF) ni sistemas de prevención de intrusiones de red (IPS).
+\end{itemize}
+
+\subsection{Entorno de Implementación}
+
+La ejecución y validación del proyecto se llevan a cabo sobre una plataforma tecnológica compuesta por hardware de servidor dedicado, infraestructura de red local de laboratorio y puestos clientes de prueba:
+
+\begin{enumerate}[label=\alph*)]
+    \item \textbf{Servidor Controlador de Dominio (dc1):}
+    \begin{itemize}
+        \item Sistema operativo: Debian GNU/Linux 12 (Bookworm), arquitectura de 64 bits (x86\_64).
+        \item Tipo de instalación: host físico dedicado (modalidad servidor continuo de laboratorio), asegurando la ejecución nativa de Samba 4 para evitar las restricciones de aislamiento de red y difusión (\textit{broadcast}) propias de entornos de contenedores.
+        \item Nombre de host (FQDN): \texttt{dc1.sudoers.lan}.
+        \item Dirección IP fija: \texttt{192.168.0.2} con máscara de subred \texttt{255.255.255.0} (\texttt{/24}).
+        \item Puerta de enlace predeterminada: \texttt{192.168.0.1}.
+        \item Servidor DNS primario: \texttt{127.0.0.1} y \texttt{192.168.0.2} (Samba Internal DNS resolviendo autoritativamente la zona \texttt{sudoers.lan}).
+        \item Reenviadores DNS públicos: \texttt{1.1.1.1} (Cloudflare) y \texttt{8.8.8.8} (Google Public DNS).
+    \end{itemize}
+
+    \item \textbf{Infraestructura de red:}
+    \begin{itemize}
+        \item Segmento de red local: \texttt{192.168.0.0/24}, red plana cableada Ethernet que interconecta el servidor, el enrutador de laboratorio y los equipos clientes.
+        \item Enrutador de laboratorio: enrutador TP-Link TL-WR850N (firmware 3.16.0), con dirección IP \texttt{192.168.0.1}, encargado de la interconexión física y puerta de enlace de la red.
+        \item Dominio de red y reino Kerberos: \texttt{SUDOERS.LAN}.
+    \end{itemize}
+
+    \item \textbf{Equipos cliente para validación:}
+    \begin{itemize}
+        \item Clientes GNU/Linux: estaciones de trabajo con distribuciones basadas en Debian/Ubuntu, integradas al dominio mediante el demonio de seguridad SSSD (\textit{System Security Services Daemon}) y herramientas de unión estándar (\texttt{realmd}).
+        \item Clientes Microsoft Windows: estaciones de trabajo Windows para pruebas de unión nativa de puestos ofimáticos al dominio (\texttt{SUDOERS}) e inicio de sesión interactivo con credenciales centralizadas.
+    \end{itemize}
+\end{enumerate}

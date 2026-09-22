@@ -1,8 +1,55 @@
 % ============================================================================
 %  CAPÍTULO I: INTRODUCCIÓN
-%  Contenido pendiente de redacción.
 % ============================================================================
 
 \section{Introducción}
 
-[Escribir aqu\'i la introducci\'on de la Actividad 7.]
+En la gestión contemporánea de infraestructuras de tecnologías de la información (TI), la administración centralizada de identidades, credenciales y directivas de acceso constituye uno de los pilares fundamentales para garantizar la seguridad operativa, la escalabilidad y la eficiencia administrativa. Históricamente, las organizaciones enfrentaban serias dificultades derivadas de la gestión descentralizada de cuentas de usuario, donde cada estación de trabajo y servidor mantenía su propia base de datos de autenticación local. Este esquema distribuido no solo incrementaba exponencialmente la sobrecarga operativa del personal de sistemas al exigir la duplicación manual de usuarios y contraseñas en cada equipo, sino que también introducía vulnerabilidades críticas de seguridad, inconsistencias en los privilegios y una nula capacidad de auditoría unificada.
+
+\subsection{El concepto de Controlador de Dominio en entornos Linux}
+
+Frente a las limitaciones de los esquemas dispersos, surgió el modelo de Directorio Activo y de Controlador de Dominio (Domain Controller o DC), concebido como el núcleo autoritativo que almacena, estructura y valida la totalidad de identidades, relaciones de pertenencia a grupos y derechos de acceso dentro de un perímetro lógico denominado dominio \citep{msft_activedirectory}. En un Controlador de Dominio convergen de manera sinérgica tres servicios esenciales de red:
+
+\begin{enumerate}[label=\alph*)]
+    \item \textbf{Servicio de Directorio Ligero (LDAP):} Proporciona una base de datos jerárquica y optimizada para lecturas frecuentes, donde se organizan objetos tales como usuarios, grupos de seguridad, computadoras y unidades organizativas (OU), permitiendo consultas estructuradas y autorización granular \citep{rfc4511}.
+    \item \textbf{Protocolo de autenticación Kerberos (v5):} Implementa un mecanismo criptográfico de boletos (\textit{tickets}) emitidos por un Centro de Distribución de Claves (KDC). Kerberos permite que usuarios y servicios demuestren mutuamente su identidad a través de redes no confiables sin transmitir contraseñas en texto claro, mitigando vectores de ataque por intercepción o suplantación \citep{rfc4120}.
+    \item \textbf{Sistema de Nombres de Dominio (DNS):} Actúa como el sistema de localización y resolución fundamental de la red \citep{rfc1035}, extendido mediante registros de servicio (SRV) que posibilitan a las estaciones clientes descubrir dinámicamente qué servidores operan las funciones de autenticación LDAP y KDC dentro del espacio de nombres \citep{rfc2782}.
+\end{enumerate}
+
+Si bien estas arquitecturas fueron consolidadas y popularizadas en el ámbito corporativo por Microsoft Windows Server, el ecosistema de código abierto bajo GNU/Linux ha desarrollado soluciones maduras y robustas para asumir este rol neurálgico sin supeditar la infraestructura a licencias propietarias ni a ecosistemas cerrados.
+
+\subsection{El rol crítico del Sistema de Nombres de Dominio (DNS)}
+
+El Sistema de Nombres de Dominio (DNS) representa la columna vertebral de cualquier arquitectura distribuida. En las fases iniciales de diseño y laboratorio, la resolución del espacio de nombres interno de la organización (\texttt{sudoers.lan}) se estructuró mediante servidores independientes basados en BIND 9 (\textit{Berkeley Internet Name Domain}). Dicha configuración previa permitió establecer:
+
+\begin{itemize}
+    \item \textbf{Zonas directas e inversas:} Resolución de nombres a direcciones IPv4 mediante registros de host tipo A (\texttt{db.sudoers.lan}) y correspondencia inversa de direcciones IP a nombres canónicos mediante registros de puntero PTR en el dominio \texttt{in-addr.arpa} (\texttt{db.1.168.192}).
+    \item \textbf{Mapeo de servicios departamentales:} Definición de registros A y CNAME para la totalidad de servicios corporativos de la red, tales como servidores web (\texttt{web}, \texttt{www}), correo electrónico (\texttt{mail} con su correspondiente registro MX de prioridad), almacenamiento compartido (\texttt{files}), servicios de impresión (\texttt{print}), monitoreo (\texttt{zabbix}) y administración de contenedores (\texttt{portainer}).
+    \item \textbf{Vistas y reenviadores recursivos:} Implementación de vistas (\textit{views}) de BIND 9 para entornos con múltiples interfaces de red y reenviadores (\textit{forwarders}) hacia servidores públicos (\texttt{1.1.1.1}, \texttt{8.8.8.8}) para resolver peticiones fuera del dominio local.
+\end{itemize}
+
+No obstante, al dar el salto hacia una arquitectura de Directorio Activo, el rol del DNS trasciende la mera traducción estática de nombres a direcciones IP. En Active Directory, el DNS se convierte en un catálogo dinámico y crítico de localización de servicios: sin una resolución DNS impecable y especializada, ningún cliente puede encontrar el KDC para autenticarse ni consultar el catálogo global LDAP. Específicamente, el dominio depende de registros de servicio (SRV) bajo las ramas canónicas \texttt{\_msdcs}, \texttt{\_tcp} y \texttt{\_udp} (como \texttt{\_ldap.\_tcp.sudoers.lan} y \texttt{\_kerberos.\_tcp.sudoers.lan}). Por esta razón, el Controlador de Dominio asume directamente la autoridad sobre la zona \texttt{sudoers.lan}, garantizando la publicación y actualización continua de dichos registros vitales.
+
+\subsection{Importancia e impacto del servicio Samba 4 Active Directory}
+
+En este contexto de interoperabilidad y soberanía tecnológica, el proyecto Samba representa un hito fundamental en la historia del software libre. Durante décadas, Samba proveyó servicios de compartición de archivos e impresión bajo los protocolos SMB/CIFS y actuó como Controlador de Dominio Primario (PDC) al estilo clásico de Windows NT 4.0. No obstante, con la maduración de la arquitectura de Samba 4, la suite evolucionó para implementar de forma completa y nativa un Controlador de Dominio de Directorio Activo (\textit{Active Directory Domain Controller} o AD DC), plenamente compatible con los protocolos, esquemas y niveles funcionales de Microsoft Active Directory.
+
+Para resolver la dependencia crítica de DNS en Active Directory, Samba 4 incorpora un backend DNS interno (\texttt{SAMBA\_INTERNAL}), o alternativamente un módulo dinámico para BIND 9 (BIND9\_DLZ). En la arquitectura adoptada, el servidor Samba AD gestiona directamente el servicio DNS interno en el puerto 53, asegurando:
+\begin{itemize}
+    \item \textbf{Gestión nativa de registros SRV y localizadores de dominio:} Administrando internamente los registros requeridos por Kerberos y LDAP sin requerir sincronizaciones manuales propensas a errores.
+    \item \textbf{Continuidad en la resolución de servicios:} Permitiendo registrar y resolver todos los nombres de servicios de infraestructura heredados del laboratorio (\texttt{web}, \texttt{mail}, \texttt{print}, \texttt{files}) dentro de la misma zona autoritativa \texttt{sudoers.lan}.
+    \item \textbf{Reenvío recursivo transparente:} Derivando consultas externas hacia servidores DNS globales para mantener acceso a Internet en las estaciones de la red.
+\end{itemize}
+
+La adopción de Samba 4 como AD DC sobre distribuciones empresariales como Debian GNU/Linux reviste una trascendencia estratégica por múltiples razones:
+\begin{itemize}
+    \item \textbf{Interoperabilidad multiplataforma transparente:} Al permitir que clientes heterogéneos (estaciones con GNU/Linux mediante SSSD o Winbind, y terminales con sistemas operativos Microsoft Windows) inicien sesión, validen credenciales y consuman recursos compartidos de manera idéntica y sin requerir agentes propietarios en los puestos de trabajo.
+    \item \textbf{Eficiencia de costos y soberanía de licenciamiento:} Al eliminar la necesidad de adquirir costosas licencias de servidor y licencias de acceso de cliente (CALs), democratizando la implementación de arquitecturas empresariales seguras tanto en entornos corporativos como en ámbitos académicos.
+    \item \textbf{Estabilidad, seguridad y control del sistema:} Al ejecutarse de manera nativa sobre un sistema operativo de grado empresarial como Debian GNU/Linux, se aprovechan las bondades del núcleo Linux en materia de rendimiento de red, aislamiento de privilegios, filtrado granular por cortafuegos (\textit{nftables}) y automatización de tareas mediante herramientas de línea de comandos e infraestructuras reproducibles.
+\end{itemize}
+
+\subsection{Propósito de la actividad}
+
+El presente trabajo, desarrollado en el marco de la asignatura \textit{Taller de Sistemas Operativos II}, tiene como propósito fundamental investigar, diseñar, implementar y documentar la puesta en marcha de un Controlador de Dominio corporativo basado en Samba 4 AD DC desplegado de forma nativa sobre una distribución Debian GNU/Linux. 
+
+A través de esta práctica integral, se busca consolidar las competencias técnicas requeridas para desplegar el árbol de identidades de una organización real, articular la transición desde un servidor DNS estático hacia el motor de resolución DNS interno autoritativo de Active Directory para el dominio local \texttt{sudoers.lan}, aplicar políticas de seguridad en la gestión de contraseñas, estructurar recursos compartidos de red con permisos segmentados por grupos departamentales y verificar experimentalmente el inicio de sesión centralizado y la unión de estaciones clientes al dominio. El informe detalla de manera rigurosa cada decisión arquitectónica adoptada, contrastando los fundamentos teóricos con las evidencias prácticas obtenidas durante el proceso de configuración.
