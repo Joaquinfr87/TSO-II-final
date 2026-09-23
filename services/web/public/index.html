@@ -138,12 +138,12 @@
         .avatar {
             width: 58px; height: 58px;
             border-radius: 50%;
+            overflow: hidden;
             display: grid; place-items: center;
-            font-weight: 750; font-size: 1.25rem;
             background: linear-gradient(135deg, var(--accent), var(--accent2));
-            color: #fff;
             margin-bottom: 0.4rem;
         }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
         .member .name { font-weight: 650; font-size: 1.05rem; }
         .member .role { color: var(--muted); font-size: 0.85rem; }
         .member .net { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); }
@@ -242,19 +242,19 @@
             <p class="sub">Grupo <code>admins</code> del dominio. Usuarios del area de sistemas con acceso de gestión al server.</p>
             <div class="team">
                 <a class="member" href="https://joaquin.sudoers.lan">
-                    <span class="avatar">JQ</span>
+                    <span class="avatar"><img src="equipo/joaquin.jpg" alt="Joaquin"></span>
                     <span class="name">Joaquin</span>
                     <span class="role">Diseño de infraestructura · DC, red y DNS</span>
                     <span class="net">joaquin.sudoers.lan · 192.168.0.50</span>
                 </a>
                 <a class="member" href="https://david.sudoers.lan">
-                    <span class="avatar">DV</span>
+                    <span class="avatar"><img src="equipo/david.jpg" alt="David"></span>
                     <span class="name">David</span>
                     <span class="role">Administración del dominio · archivos</span>
                     <span class="net">david.sudoers.lan · 192.168.0.51</span>
                 </a>
                 <a class="member" href="https://nicolas.sudoers.lan">
-                    <span class="avatar">NC</span>
+                    <span class="avatar"><img src="equipo/nicolas.jpg" alt="Nicolas"></span>
                     <span class="name">Nicolas</span>
                     <span class="role">Administración del dominio · base de datos</span>
                     <span class="net">nicolas.sudoers.lan · 192.168.0.52</span>
