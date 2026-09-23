@@ -24,13 +24,20 @@ PROXY_IP="192.168.0.2"
 
 ensure_a() {
     local host="$1"
+    local out=""
     if samba-tool dns query "$SERVER" "$ZONE" "$host" A --use-kerberos=required 2>/dev/null \
-            | grep -q "${PROXY_IP}$"; then
+            | grep -qs "$PROXY_IP"; then
         echo "  ok    $host.$ZONE  →  $PROXY_IP  (ya existe)"
         return
     fi
-    samba-tool dns add "$SERVER" "$ZONE" "$host" A "$PROXY_IP" --use-kerberos=required \
-        && echo "  +     $host.$ZONE  →  $PROXY_IP"
+    out="$(samba-tool dns add "$SERVER" "$ZONE" "$host" A "$PROXY_IP" --use-kerberos=required 2>&1)"
+    if printf '%s' "$out" | grep -qs "RECORD_ALREADY_EXISTS"; then
+        echo "  ok    $host.$ZONE  →  $PROXY_IP  (ya existía, sin cambios)"
+        return
+    fi
+    echo "  ERROR al crear $host.$ZONE:"
+    printf '%s\n' "$out"
+    exit 1
 }
 
 echo "==> Servicios web alojados en máquinas de admins (via proxy) ..."
