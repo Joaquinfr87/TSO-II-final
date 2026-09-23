@@ -5,8 +5,6 @@ rem Ejecutado por Windows en cada login (via atributo scriptPath
 rem del AD). Aplica el wallpaper y abre la web del equipo.
 rem =============================================================
 
-echo %date% %time% %USERDOMAIN%\%USERNAME% >> "%USERPROFILE%\logon-debug.txt"
-
 rem --- 1) Aplicar wallpaper (helper PS: SystemParametersInfo, funciona en Win10) ---
 powershell.exe -NoProfile -ExecutionPolicy Bypass ^
     -File "\\dc1.sudoers.lan\NETLOGON\wallpaper.ps1"
