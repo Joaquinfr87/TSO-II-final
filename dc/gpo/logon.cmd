@@ -9,5 +9,9 @@ rem --- 1) Aplicar wallpaper (helper PS: SystemParametersInfo, funciona en Win10
 powershell.exe -NoProfile -ExecutionPolicy Bypass ^
     -File "\\dc1.sudoers.lan\NETLOGON\wallpaper.ps1"
 
-rem --- 2) Abrir la web de la organizacion ---
-start "" "http://www.sudoers.lan"
+rem --- 2) Abrir la web de la organizacion (Edge explicito) ---
+if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
+    start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" "http://www.sudoers.lan"
+) else (
+    start "" msedge "http://www.sudoers.lan"
+)
