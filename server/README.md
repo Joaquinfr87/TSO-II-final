@@ -23,9 +23,29 @@ git pull
 sudo bash server/deploy.sh
 ```
 
-El script **valida la sintaxis** antes de aplicar (`nft -c`, `sshd -t`),
-**respalda** los configs previos y si algo falla no deja el server sin
-conexión.
+`deploy.sh` aplica, en orden:
+
+1. **Firewall** nftables (valida con `nft -c`, respalda y recarga).
+2. **SSH** endurecido (respalda, valida con `sshd -t` y reinicia).
+3. **NTP** chrony (respalda, habilita y reinicia).
+4. **Contenedores**: valida `services/web/nginx.conf` (con `nginx -t` en
+   contenedor) y hace `docker compose up -d --build` desde la raíz del repo.
+   Así el proxy web y el resto de servicios quedan al día.
+
+El script **valida la sintaxis** antes de aplicar (`nft -c`, `sshd -t`,
+`nginx -t`), **respalda** los configs previos y si algo falla no deja el server
+sin conexión.
+
+### DNS (registros de nombres publicados)
+
+Los cambios de config (nginx/compose) se aplican solos con el deploy. Los
+**registros A** que exponen servicios (ej. `david`/`nicolas`) se crean una vez
+en el DC, con ticket de administrador:
+
+```bash
+sudo kinit administrator
+sudo bash dc/dns-records.sh    # idempotente: solo agrega lo que falta
+```
 
 ### Rollback
 

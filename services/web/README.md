@@ -22,9 +22,16 @@ hacia los servicios de la organización. **Termina TLS** con una CA interna.
 | `portainer.sudoers.lan` | `tso-portainer:9000` (Portainer HTTP interno) |
 | `webmail.sudoers.lan` | `tso-webmail:80` — **comentado, Fase 4** |
 | `dashboard.sudoers.lan` | monitoreo — **Fase 6** |
+| `joaquin.sudoers.lan` | estático — página del equipo (`/equipo/joaquin.html`) |
+| `david.sudoers.lan` | `192.168.0.51:8080` — servicio web de la máquina de David |
+| `nicolas.sudoers.lan` | `192.168.0.52:8080` — servicio web de la máquina de Nicolás |
 
 Todo `http://…` redirige a `https://…` (301). El proxy solo habla HTTP hacia
 los backends internos; el TLS lo termina nginx.
+
+`david`/`nicolas` son servicios web corriendo **en las máquinas de los admins**
+(.51/.52) expuestos por este proxy. Roles, puerto y registro:
+[`docs/publicar-servicios-admin.md`](../../docs/publicar-servicios-admin.md).
 
 ## HTTPS / TLS
 
