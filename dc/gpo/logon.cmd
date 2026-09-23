@@ -5,6 +5,8 @@ rem Ejecutado por Windows en cada login (via atributo scriptPath
 rem del AD). Aplica el wallpaper y abre la web del equipo.
 rem =============================================================
 
+echo %date% %time% %USERDOMAIN%\%USERNAME% >> "%USERPROFILE%\logon-debug.txt"
+
 set "WALL=%USERPROFILE%\Pictures\ooo-wall.jpg"
 
 rem --- 1) Bajar el fondo si aun no lo tiene el perfil ---
