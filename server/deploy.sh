@@ -72,9 +72,16 @@ if [ ! -f "$ROOT/docker-compose.yml" ]; then
     exit 1
 fi
 # Valida la configuración de nginx (services/web/nginx.conf) sin tocar nada.
+# OJO: montar tls/ (certs) porque el conf declara ssl_certificate; sin esa
+# ruta nginx -t falla con "cannot load certificate" aunque el conf es válido.
 echo "    validando services/web/nginx.conf ..."
+if [ ! -f "$ROOT/services/web/tls/server.crt" ]; then
+    echo "    ATENCIÓN: falta services/web/tls/ (certs, no versionado). Correr:"
+    echo "      sudo bash $ROOT/services/web/tls-gen.sh"
+fi
 if sudo docker run --rm \
         -v "$ROOT/services/web/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+        -v "$ROOT/services/web/tls:/etc/nginx/tls:ro" \
         nginx:1.27-alpine nginx -t >/dev/null 2>&1; then
     echo "    nginx.conf OK"
 else
