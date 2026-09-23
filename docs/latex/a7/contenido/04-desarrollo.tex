@@ -1,8 +1,434 @@
 % ============================================================================
 %  CAPÍTULO III: DESARROLLO DEL TRABAJO
-%  Contenido pendiente de redacción.
 % ============================================================================
 
 \section{Desarrollo del trabajo}
 
-[Escribir aqu\'i el desarrollo de la Actividad 7.]
+Este capítulo documenta, paso a paso, la configuración de un Controlador de
+Dominio de Directorio Activo sobre Debian GNU/Linux 12. Cada bloque describe
+desde la preparación del sistema operativo base hasta las pruebas de
+autenticación y de unión de clientes al dominio, incluyendo la justificación
+técnica de cada una de las decisiones tomadas.
+
+% ============================================================================
+\section{Preparación del sistema}
+
+La primera etapa consistió en dejar el servidor listo para asumir el rol de
+Controlador de Dominio. Un AD DC es el punto de referencia de identidad de
+toda la red, por lo que su nombre y su dirección IP deben ser estables y
+conocidos de antemano \citep{msft_activedirectory}.
+
+\subsection{Identidad del host}
+
+A los clientes de la red les llega el DC por \textit{hostname}; si este
+cambiara, todos los equipos que ya lo conocen perderían la referencia. Por
+ello se fijó el nombre \texttt{dc1} y el nombre completamente cualificado
+(FQDN) \texttt{dc1.sudoers.lan}:
+
+\begin{lstlisting}[style=terminal]
+$ hostnamectl set-hostname dc1
+$ hostnamectl status | head -3
+  Static hostname: dc1
+  Icon name: computer-laptop
+  Operating System: Debian GNU/Linux 12 (bookworm)
+\end{lstlisting}
+
+\capturaAPA{fig:hostname}{Identidad de host \texttt{dc1} configurada en el servidor}{captura-hostname.png}{Captura de pantalla mostrando la salida de \texttt{hostnamectl status} con el nombre de host \texttt{dc1}.}
+
+\subsection{Configuración de la IP fija}
+
+Un DC no puede tener una dirección IP variable: Kerberos y el DNS lo
+referencian constantemente por \texttt{192.168.0.2}. Además, Samba exige que
+el \textit{hostname} resuelva a la IP de la red local y \textbf{nunca} a
+\texttt{127.0.0.1} — si resolviera a \textit{loopback}, el DC se ``hablaría
+a sí mismo'' y los clientes jamás lo alcanzarían. Por eso se garantizó que
+\texttt{dc1} resuelva a \texttt{192.168.0.2/24} en la interfaz cableada
+\texttt{eno1} y se registró en \texttt{/etc/hosts}:
+
+\begin{lstlisting}[style=terminal]
+$ ip -4 a show eno1
+2: eno1: <BROADCAST,MULTICAST,UP,LOWER_UP> ... state UP
+    inet 192.168.0.2/24 brd 192.168.0.255 scope global eno1
+
+$ grep -E 'dc1|sudoers' /etc/hosts
+192.168.0.2   dc1.sudoers.lan   dc1
+\end{lstlisting}
+
+\capturaAPA{fig:ip-fija}{Dirección IP fija \texttt{192.168.0.2/24} en la interfaz \texttt{eno1}}{captura-ip-fija.png}{Captura de pantalla mostrando la salida de \texttt{ip -4 a show eno1} con la IP \texttt{192.168.0.2/24} y la entrada de \texttt{/etc/hosts} que asocia \texttt{dc1.sudoers.lan} a esa dirección.}
+
+\subsection{Instalación de paquetes y servicios del host}
+
+Los paquetes del dominio (Samba 4, cliente Kerberos y utilidades DNS) se
+instalaron de forma \textbf{nativa} sobre el host Debian, nunca dentro de un
+contenedor: el DC de Samba es un servicio frágil cuya virtualización
+contenerizada está descartada por decisión de diseño. La instalación se
+realiza con el administrador APT:
+
+\begin{lstlisting}[style=terminal]
+$ apt update
+$ apt install -y samba smbclient winbind krb5-user \
+    libpam-winbind libnss-winbind dnsutils
+\end{lstlisting}
+
+Junto con Samba se habilitaron los demás roles del servidor ``todo-en-uno''
+que dan sustento físico al dominio: el firewall \texttt{nftables}, el
+servidor de hora \texttt{chrony} (imprescindible para Kerberos, que exige un
+desfase de reloj menor a 5 minutos) y Docker para los servicios
+contenedorizados del resto del proyecto:
+
+\begin{lstlisting}[style=terminal]
+$ systemctl is-enabled samba-ad-dc nftables chrony docker
+samba-ad-dc.service    enabled
+nftables.service       enabled
+chrony.service         enabled
+docker.service         enabled
+\end{lstlisting}
+
+\capturaAPA{fig:servicios-host}{Servicios del host habilitados para el arranque}{captura-servicios-host.png}{Captura de pantalla mostrando la salida de \texttt{systemctl is-enabled} con los servicios \texttt{samba-ad-dc}, \texttt{nftables}, \texttt{chrony} y \texttt{docker} en estado \texttt{enabled}.}
+
+% ============================================================================
+\section{Instalación de Samba 4 y promoción del servidor como DC}
+
+Samba 4 integra en un único daemon (\texttt{samba-ad-dc}) todos los
+protocolos que forman Active Directory: LDAP (directorio) \citep{rfc4511},
+Kerberos (autenticación) \citep{rfc4120}, SMB/CIFS (archivos) y el DNS
+propio \citep{sambateam2024}. El servidor se promueve a Controlador de
+Dominio mediante el aprovisionamiento del dominio con \texttt{samba-tool}:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool domain provision \
+    --use-rfc2307 --realm=SUDOERS.LAN \
+    --domain=SUDOERS --server-role=dc \
+    --adminpass='AdminPass!2026'
+\end{lstlisting}
+
+El aprovisionamiento crea el directorio LDAP, los relatios Kerberos, el
+archivo \texttt{/etc/samba/smb.conf} y la maqueta DNS de la zona
+\texttt{sudoers.lan}. Tras la promoción, se configura el cliente Kerberos
+(\texttt{/etc/krb5.conf}) apuntando al KDC local (\texttt{dc1.sudoers.lan})
+y se deja \texttt{samba-ad-dc} como el único demonio del dominio activo,
+inhabilitando los heredados \texttt{smbd}, \texttt{nmbd} y \texttt{winbind}
+para evitar colisiones de sockets \citep{sambateam2024}.
+
+La promoción correcta se verifica con dos consultas de
+\texttt{samba-tool}. La primera muestra el nivel funcional, es decir el
+``modo de compatibilidad'' con el que opera el dominio (cuanto más alto,
+más funciones activas ofrece):
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool domain level show
+Domain: SUDOERS
+Domain level: 2008 R2
+Forest level: 2008 R2
+\end{lstlisting}
+
+La segunda pregunta al propio DC \emph{dónde está} y \emph{a qué dominio
+sirve}; la línea \texttt{Server role: active directory domain controller}
+es la prueba de que la promoción como Controlador de Dominio funcionó:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool domain info 127.0.0.1
+Domain:           SUDOERS
+Domain SID:       S-1-5-21-...
+Forest:           SUDOERS.LAN
+Number of users:  13
+Server role:      active directory domain controller
+\end{lstlisting}
+
+\capturaAPA{fig:domain-info}{Datos del dominio y del Controlador de Dominio}{captura-domain-info.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool domain info 127.0.0.1} con el \textit{realm} \texttt{SUDOERS.LAN}, el nombre NetBIOS \texttt{SUDOERS} y el rol \texttt{active directory domain controller}.}
+
+Finalmente, se comprueba que los puertos del dominio estén escuchando:
+\textbf{53} (DNS), \textbf{88} (Kerberos), \textbf{389} (LDAP) y \textbf{445}
+(SMB). Es la prueba física de red de que el DC está operativo:
+
+\begin{lstlisting}[style=terminal]
+$ ss -ltn | grep -E ':53|:88|:389|:445'
+LISTEN  0   128  *:88    *:*   samba  (kerberos)
+LISTEN  0   128  *:389   *:*   samba  (ldap)
+LISTEN  0   128  *:445   *:*   samba  (smb)
+LISTEN  0   128  *:53    *:*   samba  (dns)
+\end{lstlisting}
+
+\capturaAPA{fig:puertos-ad}{Puertos del dominio escuchando: 53, 88, 389 y 445}{captura-puertos-ad.png}{Captura de pantalla mostrando la salida de \texttt{ss -ltn} con los puertos 53, 88, 389 y 445 a la escucha.}
+
+% ============================================================================
+\section{Configuración del DNS interno}
+
+Un dominio de Active Directory se apoya por completo en el DNS: los clientes
+lo consultan para descubrir en qué servidor se encuentra cada servicio de
+dominio \citep{rfc1035}. Por ello el DC de Samba asumió la autoridad de la
+zona \texttt{sudoers.lan} con el backend \textbf{SAMBA\_INTERNAL} (gestionado
+automáticamente por el propio DC, sin competir con el BIND9 que se retiró del
+laboratorio).
+
+\subsection{Registro A del Controlador de Dominio}
+
+El registro \texttt{A} es la tabla nombre-$\rightarrow$IP del dominio: toda
+consulta empieza pidiendo \texttt{dc1.sudoers.lan}:
+
+\begin{lstlisting}[style=terminal]
+$ dig dc1.sudoers.lan
+;; ANSWER SECTION:
+dc1.sudoers.lan. 900 IN A 192.168.0.2
+\end{lstlisting}
+
+\capturaAPA{fig:dig-dc}{Registro A del DC: \texttt{dc1.sudoers.lan} $\rightarrow$ \texttt{192.168.0.2}}{captura-dig-dc.png}{Captura de pantalla mostrando la salida de \texttt{dig dc1.sudoers.lan} con la respuesta \texttt{192.168.0.2}.}
+
+\subsection{Registros SRV de descubrimiento}
+
+Los registros SRV son las ``guías de servicios'' del dominio \citep{rfc2782}:
+le dicen a cualquier cliente dónde está el LDAP, el Kerberos o el DC. Sin
+ella las estaciones no encuentran el dominio. Su presencia confirma que el
+descubrimiento automático funciona sin configuración manual:
+
+\begin{lstlisting}[style=terminal]
+$ dig _ldap._tcp.dc._msdcs.sudoers.lan SRV
+;; ANSWER SECTION:
+_ldap._tcp.dc._msdcs.sudoers.lan. 900 IN SRV 0 100 389 dc1.sudoers.lan.
+\end{lstlisting}
+
+\capturaAPA{fig:dig-srv}{Registros SRV de descubrimiento del dominio}{captura-dig-srv.png}{Captura de pantalla mostrando la salida de \texttt{dig \_ldap.\_tcp.dc.\_msdcs.sudoers.lan SRV} con el registro SRV apuntando al puerto 389 de \texttt{dc1.sudoers.lan}.}
+
+\subsection{Zona completa del dominio}
+
+Además de los registros de infraestructura, la zona guarda las direcciones
+``lindas'' de los servicios y de los miembros del proyecto
+(\texttt{joaquin.sudoers.lan}, \texttt{web.sudoers.lan}, \texttt{print.},
+\texttt{mail.}, etc.). Todos resuelven de forma centralizada en el DC:
+
+\begin{lstlisting}[style=terminal]
+$ kinit joaquin@SUDOERS.LAN           # ticket para autenticar la consulta
+$ samba-tool dns query dc1.sudoers.lan sudoers.lan @ ALL -k yes
+Name=, Records=8, Children=0
+ DC@SUDOERS.LAN: type=A, value=192.168.0.2
+ web@SUDOERS.LAN: type=A, value=192.168.0.2
+ joaquin@SUDOERS.LAN: type=A, value=192.168.0.2
+...
+\end{lstlisting}
+
+\capturaAPA{fig:zona-dns}{Zona DNS completa de \texttt{sudoers.lan} gestionada por el DC}{captura-zona-dns.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool dns query 127.0.0.1 sudoers.lan @ ALL} con los registros A de la zona.}
+
+\subsection{Reenviador hacia Internet}
+
+Para que los clientes resuelvan también nombres externos, el DC funciona con
+un \textit{forwarder} hacia el router de la red. De esta manera una única
+respuesta DNS del DC cubre tanto los nombres internos (zona
+\texttt{sudoers.lan}) como los externos de Internet \citep{iscbind9}.
+
+% ============================================================================
+\section{Creación de usuarios y grupos}
+
+Los permisos se otorgan a \textbf{grupos}, no a personas sueltas: de esa
+forma ``quién puede qué'' se administra en un solo lugar y los cambios se
+propagan a toda la organización. Los grupos y usuarios se crearon con el
+script idempotente \texttt{dc/add-users-groups.sh} (puede ejecutarse varias
+veces sin duplicar objetos) o manualmente con \texttt{samba-tool}.
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool group list | grep -E 'admins|sistemas|oficina|contabilidad'
+admins
+sistemas
+contabilidad
+oficina
+
+$ samba-tool user list
+joaquin
+nicolas
+david
+grupo2
+grupo3
+...
+\end{lstlisting}
+
+\capturaAPA{fig:grupos}{Grupos de seguridad del dominio}{captura-grupos.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool group list} filtrada por los grupos \texttt{admins}, \texttt{sistemas} y \texttt{oficina}.}
+
+\capturaAPA{fig:usuarios}{Usuarios registrados en el dominio}{captura-usuarios.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool user list} con los usuarios administradores y de prueba.}
+
+Los usuarios son objetos dentro del árbol LDAP, no cuentas sueltas en cada
+máquina. Cada objeto tiene un \texttt{sAMAccountName} (el login corto), un
+principal de usuario UPN (\texttt{joaquin@SUDOERS.LAN}) y pertenece a
+\textit{n} grupos, heredando la suma de sus permisos:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool user show joaquin
+dn: CN=joaquin,CN=Users,DC=SUDOERS,DC=LAN
+sAMAccountName: joaquin
+userPrincipalName: joaquin@SUDOERS.LAN
+memberOf: CN=admins,CN=Users,DC=SUDOERS,DC=LAN
+          CN=sistemas,CN=Users,DC=SUDOERS,DC=LAN
+\end{lstlisting}
+
+\capturaAPA{fig:user-show}{Detalle de un usuario y su pertenencia a grupos}{captura-user-show.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool user show joaquin} con el atributo \texttt{memberOf} enumerando los grupos del usuario.}
+
+La tabla \ref{tab:decisiones} resume las decisiones técnicas más relevantes
+de las etapas anteriores y su justificación.
+
+\begin{table}[H]
+\centering
+\caption{Decisiones técnicas y justificación}
+\label{tab:decisiones}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{5cm}p{8.5cm}@{}}
+    \toprule
+    \textbf{Decisión} & \textbf{Justificación} \\
+    \midrule
+    DC nativo (fuera de Docker) & Samba 4 como DC es frágil en contenedores; se despliega directamente sobre Debian \citep{sambateam2024} \\
+    IP fija \texttt{192.168.0.2} / hostname \texttt{dc1} & Kerberos y DNS referencian constantemente al DC; un cambio de IP o nombre rompe el dominio \\
+    \texttt{samba-tool domain provision} & Método oficial de promoción a DC; genera configuración, directorio LDAP y maqueta DNS \\
+    DNS \textbf{SAMBA\_INTERNAL} autoritativo & El AD exige que el DC sea quien sirva la zona \texttt{sudoers.lan} y los registros SRV \\
+    Permisos por grupos AD & Administración centralizada de ``quién puede qué''; herencia automática de permisos \\
+    \texttt{samba-ad-dc} como único demonio & Evita colisiones de puertos con \texttt{smbd}, \texttt{nmbd} y \texttt{winbind} heredados \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboración propia.}
+\end{table}
+
+% ============================================================================
+\section{Pruebas de autenticación}
+
+El protocolo Kerberos resuelve el problema de ``demostrar quién soy sin
+enviar la contraseña por la red'' \citep{rfc4120}. La respuesta son
+\textbf{tickets}: el KDC (el propio DC) emite un ticket de concesión (TGT) al
+autenticar al usuario, y ese ticket viaja firmado por el DC, de modo que
+nadie puede falsificar una identidad.
+
+La prueba en el servidor se realiza con las herramientas del paquete
+\texttt{krb5-user}:
+
+\begin{lstlisting}[style=terminal]
+$ kinit juan@SUDOERS.LAN
+Password for juan@SUDOERS.LAN:
+$ klist
+Ticket cache: FILE:/tmp/krb5cc_1000
+Default principal: juan@SUDOERS.LAN
+Valid starting     Expires            Service principal
+09/20/26 10:00:00  09/20/26 20:00:00  krbtgt/SUDOERS.LAN@SUDOERS.LAN
+$ kdestroy
+\end{lstlisting}
+
+\capturaAPA{fig:kinit-klist}{Solicitud y verificación de ticket Kerberos (TGT)}{captura-kinit-klist.png}{Captura de pantalla mostrando la salida de \texttt{kinit} y \texttt{klist} sobre \texttt{dc1}, con el ticket emitido por el KDC \texttt{SUDOERS.LAN} y su vigencia.}
+
+\subsection{Autenticación desde un cliente real}
+
+La misma cuenta y el mismo ``carnet'' funcionan desde cualquier equipo de la
+red, porque el emisor de tickets siempre es el DC. Esto es el
+*single sign-on*: el cliente se identifica una vez y accede a los servicios
+del dominio \citep{msft_activedirectory}.
+
+\begin{lstlisting}[style=terminal]
+$ sudo kinit juan@SUDOERS.LAN && klist   # desde el cliente unido
+Default principal: juan@SUDOERS.LAN
+Valid starting     Expires            Service principal
+09/20/26 10:05:00  09/20/26 20:05:00  krbtgt/SUDOERS.LAN@SUDOERS.LAN
+\end{lstlisting}
+
+\capturaAPA{fig:kinit-cliente}{Autenticación Kerberos desde un equipo cliente}{captura-kinit-cliente.png}{Captura de pantalla ejecutando \texttt{kinit} y \texttt{klist} en el equipo cliente, mostrando el ticket obtenido contra el DC.}
+
+% ============================================================================
+\section{Unión de clientes al dominio}
+
+Unirse al dominio es más que configurar el DNS \citep{msft_activedirectory}:
+\texttt{realm join} crea una \textbf{computer account} en el AD, convirtiendo
+al equipo en un objeto del dominio con su propio secreto de máquina. Desde
+entonces el cliente usa el AD como fuente de identidad (LDAP para leer,
+Kerberos para autenticar) sin copiar usuarios locales.
+
+\subsection{Unión del cliente Debian}
+
+El cliente se unió al dominio ejecutando \texttt{realm join --user=administrator
+SUDOERS.LAN} desde el equipo, autenticándose con la cuenta de administración
+del dominio. La operación fue exitosa y quedó registrada la \emph{computer
+account} correspondiente, como se verifica en el servidor más adelante.
+
+\subsection{Verificación desde el cliente}
+
+Los usuarios del AD aparecen como si fueran locales gracias a SSSD:
+\texttt{getent} los consulta en vivo contra el DC, sin duplicar cuentas en el
+equipo.
+
+\begin{lstlisting}[style=terminal]
+$ getent passwd joaquin david nicolas
+joaquin:*:10001:10001:...:/home/joaquin:/bin/bash
+david:*:10002:10002:...:/home/david:/bin/bash
+nicolas:*:10003:10003:...:/home/nicolas:/bin/bash
+
+$ getent group 'admins'
+admins:*:20001:joaquin,david,nicolas
+\end{lstlisting}
+
+\capturaAPA{fig:getent}{Usuarios del dominio visibles desde el cliente con \texttt{getent}}{captura-getent.png}{Captura de pantalla mostrando la salida de \texttt{getent passwd} y \texttt{getent group} con los usuarios del AD resueltos en el cliente.}
+
+\subsection{Verificación desde el servidor}
+
+Del lado del server se comprueba que la notebook haya quedado registrada como
+equipo del dominio:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool computer list
+DESKTOP-NBK1$
+...
+\end{lstlisting}
+
+\capturaAPA{fig:computer-list}{Estaciones registradas en el dominio}{captura-computer-list.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool computer list} con el equipo del cliente unido al AD.}
+
+\subsection{Acceso a recursos de archivo}
+
+El DC sirve shares de forma nativa (sin contenedor) con permisos definidos
+por grupos AD en el servidor: \texttt{departamentos}, \texttt{homes} (cada
+usuario ve su propio directorio) y \texttt{respaldo}. El acceso se verifica
+desde el servidor con \texttt{smbclient} y desde el cliente mediante un
+montaje CIFS o el gestor de archivos:
+
+\begin{lstlisting}[style=terminal]
+$ smbclient -L dc1 --user=joaquin          # en el server
+	Sharename       Type      Comment
+	---------       ----      -------
+	departamentos   Disk      Recursos por departamentos
+	homes           Disk      Directorios personales
+	respaldo        Disk
+\end{lstlisting}
+
+\capturaAPA{fig:smbclient}{Listado de los recursos compartidos (SMB) del DC}{captura-smbclient.png}{Captura de pantalla mostrando la salida de \texttt{smbclient -L dc1 --user=joaquin} con los shares \texttt{departamentos}, \texttt{homes} y \texttt{respaldo}.}
+
+% ============================================================================
+\section{DHCP y DNS en las estaciones de la red}
+
+Para que una estación recién conectada quede ``lista para el dominio'' sin
+intervención manual, la red cuenta con el servidor DHCP Kea (en contenedor,
+con \texttt{network\_mode: host} porque DHCP usa broadcast y no atraviesa un
+bridge de Docker). Kea entrega junto con la IP las \textbf{opciones} de red:
+DNS \texttt{192.168.0.2}, dominio \texttt{sudoers.lan}, gateway
+\texttt{192.168.0.1} y NTP \texttt{192.168.0.2}. El DHCP del router está
+desactivado para evitar el doble servidor DHCP.
+
+\subsection{Verificación del servicio DHCP}
+
+\begin{lstlisting}[style=terminal]
+$ sudo ss -ulnp | grep ':67 '
+UNCONN  0  0   192.168.0.2:67  *:*  users:(("kea-dhcp4",pid=...))
+
+$ sudo cat /var/lib/kea/kea-leases4.csv   # concesiones en vivo
+address,hostname,state,valid_lifetime,...
+192.168.0.100,notebook1,assigned,...
+\end{lstlisting}
+
+\capturaAPA{fig:kea-ss}{Servidor DHCP Kea escuchando en \texttt{192.168.0.2:67}}{captura-kea-ss.png}{Captura de pantalla mostrando la salida de \texttt{ss -ulnp} con Kea a la escucha en el puerto 67/udp y las concesiones activas.}
+
+\subsection{Prueba de obtención de IP desde un cliente}
+
+Un cliente se desconecta y vuelve a tomar IP, quedando con la configuración
+completa entregada por Kea:
+
+\begin{lstlisting}[style=terminal]
+$ sudo dhclient -v eno2
+DHCPDISCOVER on eno2 to 255.255.255.255 port 67
+DHCPOFFER from 192.168.0.2
+DHCPACK from 192.168.0.2 (xid=0x...)
+$ ip -4 a
+inet 192.168.0.101/24 ...   # DNS = 192.168.0.2, dominio = sudoers.lan
+$ dig dc1.sudoers.lan      # resuelve con el DNS entregado por DHCP
+\end{lstlisting}
+
+\capturaAPA{fig:dhclient}{Cliente tomando IP del pool de Kea y resolviendo el DC}{captura-dhclient.png}{Captura de pantalla mostrando \texttt{dhclient -v} obteniendo una IP del pool dinámico y la posterior consulta \texttt{dig dc1.sudoers.lan} resuelta con el DNS entregado por DHCP.}

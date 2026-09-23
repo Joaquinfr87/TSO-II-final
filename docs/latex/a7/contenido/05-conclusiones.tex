@@ -1,8 +1,126 @@
 % ============================================================================
 %  CAPÍTULO IV: CONCLUSIONES
-%  Contenido pendiente de redacción.
 % ============================================================================
 
 \section{Conclusiones}
 
-[Escribir aqu\'i las conclusiones de la Actividad 7.]
+La implementación del Controlador de Dominio con Samba 4 sobre Debian
+permitió comprender de manera integral cómo funciona la identidad centralizada
+en una organización y qué servicios la hacen posible: el directorio LDAP, la
+autenticación Kerberos, el DNS del dominio y el protocolo SMB/CIFS operando
+como un único daemon. A continuación se presentan las conclusiones más
+relevantes.
+
+\subsection{Resultados obtenidos}
+
+El Controlador de Dominio fue configurado y verificado exitosamente con las
+siguientes características:
+
+\begin{itemize}
+  \item Samba 4 desplegado de forma \textbf{nativa} sobre Debian 12, con
+        el daemon \texttt{samba-ad-dc} como único servicio del dominio
+        (LDAP + Kerberos + SMB + DNS en un solo proceso).
+  \item Dominio \texttt{SUDOERS.LAN} aprovisionado con
+        \texttt{samba-tool domain provision}, nivel funcional 2008 R2 y rol
+        verificado como \texttt{active directory domain controller}.
+  \item DNS interno autoritativo con backend \textbf{SAMBA\_INTERNAL}: la
+        zona \texttt{sudoers.lan} y los registros SRV de descubrimiento
+        responden correctamente, permitiendo a cualquier cliente encontrar el
+        dominio sin configuración manual.
+  \item Usuarios (\texttt{joaquin}, \texttt{nicolas}, \texttt{david} y los
+        de prueba \texttt{grupo2} a \texttt{grupo9}) y grupos de seguridad
+        (\texttt{admins}, \texttt{sistemas}, \texttt{oficina}, entre otros)
+        creados de forma idempotente con \texttt{dc/add-users-groups.sh}.
+  \item Autenticación Kerberos verificada desde el propio DC y desde equipos
+        clientes (\texttt{kinit}/\texttt{klist}), confirmando que el ticket
+        se emite siempre contra el KDC del dominio.
+  \item Unión de clientes Debian al dominio mediante \texttt{realm join},
+        verificada por ambos lados: \texttt{getent} en el cliente y
+        \texttt{samba-tool computer list} en el servidor.
+  \item Acceso a los recursos compartidos nativos (\texttt{departamentos},
+        \texttt{homes}, \texttt{respaldo}) con permisos definidos por grupos
+        AD.
+  \item El DHCP Kea entrega en el pool dinámico las opciones que dejan a cada
+        estación lista para el dominio (DNS, dominio, gateway y NTP) sin
+        intervención manual.
+\end{itemize}
+
+\subsection{Dificultades encontradas}
+
+Durante la configuración se presentaron las siguientes dificultades:
+
+\begin{itemize}
+  \item \textbf{Coincidencia DNS \texttt{/etc/hosts}}: el DC debe resolver su
+        propio nombre a la IP de la red y nunca a \texttt{127.0.0.1}; si
+        resuelve a \textit{loopback}, el dominio queda ``hablando solo'' y los
+        clientes no lo alcanzan.
+  \item \textbf{Orden de arranque de servicios}: los servicios del host (DC,
+        Docker, DNS, DHCP) y las interfaces de red deben iniciarse en orden;
+        fue necesario retrasar la red y asegurar \texttt{network-online.target}
+        para que Kea y los contenedores no arrancaran antes que la interfaz.
+  \item \textbf{Kerberos y sincronización de reloj}: la autenticación falla si
+        el reloj del cliente se desvía más de 5 minutos del KDC; se requirió
+        chrony en el servidor y configurar NTP en las estaciones.
+  \item \textbf{Broadcast y DHCP}: el DHCP de Kea exige
+        \texttt{network\_mode: host}, porque BOOTP/DHCP usa broadcast y no
+        puede mapearse a través de un bridge de Docker.
+\end{itemize}
+
+\subsection{Importancia del Controlador de Dominio en la administración de sistemas}
+
+Un Controlador de Dominio es la base sobre la que se apoya la administración
+de identidades de una organización:
+
+\begin{itemize}
+  \item \textbf{Centralización de la identidad}: una única cuenta por usuario
+        sirve para autenticarse en cualquier equipo y acceder a los recursos,
+        aplicando el concepto de *single sign-on* \citep{msft_activedirectory}.
+  \item \textbf{Administración de permisos por grupos}: los permisos se
+        otorgan a grupos y no a personas, reduciendo la superficie de error y
+        centralizando el ``quién puede qué''.
+  \item \textbf{Descubrimiento automático}: gracias a los registros SRV del
+        DNS del DC, un equipo encuentra los servicios del dominio sin
+        configuración manual \citep{rfc2782}.
+  \item \textbf{Seguridad por diseño}: Kerberos elimina el envío de
+        contraseñas por la red, ya que toda autenticación se basa en tickets
+        firmados por el KDC \citep{rfc4120}.
+  \item \textbf{Base para el resto de la infraestructura}: el DC sostiene a
+        los demás servicios del proyecto (web, correo, compartición de
+        archivos y DHCP), y una resolución DNS o un reloj mal configurados
+        impactan en todos ellos.
+\end{itemize}
+
+\subsection{Aprendizajes adquiridos}
+
+El trabajo permitió desarrollar competencias prácticas en administración de
+servicios de red y de identidad:
+
+\begin{itemize}
+  \item Se comprendió la arquitectura de Active Directory y la función de cada
+        protocolo que integra Samba 4 (LDAP, Kerberos, SMB y DNS) funcionando
+        como un único daemon.
+  \item Se experimentó en primera persona que el DNS es la base del dominio:
+        sin registros A y SRV correctos ningún cliente logra encontrar ni
+        autenticarse contra el DC \citep{rfc1035}.
+  \item Se valoró la administración nativa de servicios en Debian y el uso de
+        herramientas propias como \texttt{samba-tool}, lo que brinda un
+        entendimiento profundo de cada componente del sistema.
+  \item Se aprendió a integrar el DC con el resto del ecosistema del
+        proyecto (Docker, nftables, chrony, Kea) respetando decisiones de
+        diseño no negociables, como que el DC nunca se conteneriza y que sus
+        puertos no se re-publican en contenedores.
+  \item Se aplicó el concepto de infraestructura como código: la promoción
+        del DC, los usuarios y los grupos quedaron definidos en scripts y
+        archivos de configuración versionados (\texttt{dc/provision.sh},
+        \texttt{dc/add-users-groups.sh}), permitiendo reproducir el entorno de
+        forma exacta y predecible (como en el lab \texttt{TSO-II}).
+  \item Se comprendió la equivalencia de la solución con un AD de Microsoft
+        (igual REINO, Nivel Funcional, \texttt{getent}/\texttt{ldapsearch}
+        como \texttt{dsquery}) tanto para administradores como para clientes
+        Windows unidos al dominio.
+\end{itemize}
+
+Como trabajo a futuro, queda pendiente la integración de los clientes
+Windows de contabilidad y marketing, la implementación de políticas de equipo
+(GPO) equivalentes a las de Windows Server y la puesta en producción del
+respaldo y monitoreo del DC nativo.

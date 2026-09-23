@@ -8,6 +8,8 @@ acceso rápido; **toda la documentación vive acá** (`docs/`).
 | Documento | Contenido |
 | --- | --- |
 | [`arquitectura.md`](arquitectura.md) | **Diseño completo de la infraestructura**: visión, principios, red/IP, servicios, identidad, archivos, correo, proxy, DB, seguridad, backups, plan por fases y limitaciones. Es el documento central. |
+| [`presentacion.md`](presentacion.md) | Guion de **pruebas en vivo de Samba** para la exposición (server vs cliente, comandos y justificación por etapa). |
+| [`guia-demo-cliente.md`](guia-demo-cliente.md) | Secuencia de comandos **del lado cliente** para la presentación: DNS, descubrimiento, `getent`, Kerberos, SMB, DHCP + equivalencias Windows y troubleshooting. |
 
 ## Fuera de `docs/` (código y contexto)
 
