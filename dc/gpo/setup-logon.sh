@@ -46,10 +46,11 @@ if [[ -z "${REALM}" ]]; then
 fi
 NETLOGON="/var/lib/samba/sysvol/${REALM}/scripts"
 
-echo "==> Instalando logon.cmd y fondo en ${NETLOGON}"
+echo "==> Instalando logon.cmd, wallpaper.ps1 y fondo en ${NETLOGON}"
 # logon.cmd debe llevar bit de ejecucion: Samba mapea FILE_EXECUTE
 # a la X del filesystem; con 0644 los clientes leen pero no ejecutan.
 sudo install -m 0755 -o root -g root "${SCRIPT_DIR}/logon.cmd" "${NETLOGON}/logon.cmd"
+sudo install -m 0644 -o root -g root "${SCRIPT_DIR}/wallpaper.ps1" "${NETLOGON}/wallpaper.ps1"
 sudo install -m 0644 -o root -g root "${WALL_SRC}" "${NETLOGON}/ooo-wall.jpg"
 
 if [[ ${#USERS[@]} -eq 0 ]]; then
