@@ -19,9 +19,9 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 
 - **UNA sola red plana:** `192.168.0.0/24`. La antigua `192.168.20.0/24` del
   lab quedó **descartada** (no hay control sobre esa red).
-- **Router:** TP-Link **TL-WR850N** (firmware 3.16.0), IP `192.168.0.1`,
-  maneja la red y es la puerta de enlace. Su DHCP **se desactiva** cuando Kea
-  tome el servicio (evita DHCP doble).
+- **Router:** TP-Link **TL-WR850N v3** (Hardware Ver. `00000002`, firmware
+  3.16.0), IP `192.168.0.1`, maneja la red y es la puerta de enlace. Su DHCP
+  **se desactiva** cuando Kea tome el servicio (evita DHCP doble).
 - **Server / DC:** ip fija **`192.168.0.2`** (conectado **por cable** al
   router), hostname `dc1` → `dc1.sudoers.lan`. La IP `192.168.0.10` del
   diseño original quedó descartada.
@@ -35,11 +35,29 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
   `admin_ips` del firewall).
 - **AD:** dominio/realm `SUDOERS.LAN`, NetBIOS `SUDOERS`, Kerberos realm `SUDOERS.LAN`.
 
+## Máquinas
+
+- **dc1** = `192.168.0.2` — el host físico (DC Samba + Docker + resto). Es la
+  única máquina "real"; el resto son VMs/equipos que le cuelgan.
+- **VM Zabbix** = `192.168.122.4` — máquina virtual en dc1 (libvirt/KVM), red
+  **NAT** `192.168.122.0/24` (virbr0). Único rol: **Zabbix server + web UI**
+  (monitoreo). No hay bridge en el host, así que NAT es la única opción.
+  ATENCIÓN (consecuencia del NAT): ninguna máquina de la LAN puede iniciar
+  conexión hacia `192.168.122.4`. Se publica SOLO vía el proxy inverso como
+  `zabbix.sudoers.lan` → `192.168.122.4` (mismo patrón que david/nicolas).
+  El monitoreo en sentido inverso no tiene problema: la VM sale por la red del
+  host (con agents en **modo activo**, que empujan hacia el server, no hace
+  falta abrir puertos entrantes en los clientes).
+- **Equipos de admins:** `pc-joaquin .50`, `pc-david .51`, `pc-nicolas .52`
+  (fijos, `.50–.99`); usuarios dinámicos en `.100–.199`.
+
 ## Usuarios (AD)
 
 - **Admins:** `joaquin`, `nicolas`, `david` (grupo `admins` + `sistemas`).
 - **Usuarios de prueba:** `grupo2`, `grupo3`, …, `grupo9` (grupo `oficina`).
   Se crean con `dc/add-users-groups.sh`, idempotente.
+- **`tsoII`:** usuario nuevo para pruebas de logon script en Windows — cambia
+  el wallpaper vía `scriptPath` de AD (script `tsoII-wallpaper.cmd` en netlogon).
 
 ## Reglas técnicas que NO se negocian
 
@@ -69,7 +87,8 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 | Base de datos | PostgreSQL (+MariaDB si hace falta) | CONTENEDOR (`services/database`) |
 | Impresión | CUPS | CONTENEDOR (`services/print`) |
 | Gestión Docker | Portainer | CONTENEDOR |
-| Monitoreo / Backup | Netdata-Grafana / restic-borg | CONTENEDOR / NATIVO cron |
+| Monitoreo | Zabbix (server + web; agents en hosts) | VM `192.168.122.4` — `services/zabbix` (compose propio) |
+| Backup | restic/borg | NATIVO cron |
 
 ## Estructura del repo
 
@@ -84,6 +103,8 @@ TSO-II-final/
 ├── clients/             ← guías para unir clientes Linux/Windows al dominio (pendiente)
 ├── services/            ← por servicio contenedor (dhcp, web, mail, db, print; webmail/monitoring/apps pendientes)
 └── docs/                ← TODA la documentación (arquitectura, futuro: red, seguridad, backup…)
+
+Máquinas: dc1 (host físico, 192.168.0.2) + VM Zabbix (192.168.122.4, NAT).
 ```
 
 ## Flujo de trabajo habitual

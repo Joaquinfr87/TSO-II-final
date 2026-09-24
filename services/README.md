@@ -11,8 +11,9 @@ Cada servicio tiene su carpeta con Dockerfile y configuración. El
 | [`database/`](database/README.md) | PostgreSQL | listo (heredado) |
 | [`print/`](print/README.md) | CUPS + PDF virtual | listo (heredado) |
 | [`dns/`](dns/README.md) | Bind9 — **RETIRADO**: el DNS lo da el DC | documentado |
+| [`zabbix/`](zabbix/README.md) | Zabbix (monitoreo) — **VM 192.168.122.4, compose propio** | nuevo |
 | [`webmail/`](webmail/README.md) | Roundcube (Fase 4) | **pendiente (vacío)** |
-| [`monitoring/`](monitoring/README.md) | Netdata / Grafana (Fase 6) | **pendiente (vacío)** |
+| [`monitoring/`](monitoring/README.md) | Netdata / Grafana — **superado por Zabbix** | descartado |
 | [`apps/`](apps/README.md) | Apps internas (Fase 5) | **pendiente (vacío)** |
 
 > `files` del lab quedó **fuera**: los recursos SMB los sirve el DC nativo

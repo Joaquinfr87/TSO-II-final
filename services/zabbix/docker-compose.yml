@@ -1,0 +1,89 @@
+# =====================================================================
+# Zabbix (monitoreo) — docker-compose PROPIO que corre EN LA VM
+# 192.168.122.4 (libvirt NAT), NO en dc1.
+#
+#   cd services/zabbix
+#   cp .env.example .env        # completar DB_PASSWORD
+#   docker compose up -d        # (esto se ejecuta DENTRO de la VM)
+#
+# Motivo del compose aparte: la VM es una máquina distinta del host
+# dc1, así que no forma parte del compose raíz (que es para dc1).
+# web publicada como zabbix.sudoers.lan -> 192.168.122.4:8080
+# (server block en services/web/nginx.conf).
+# =====================================================================
+
+name: tso-zabbix
+
+services:
+  # ── Base de datos (PostgreSQL) ────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: zabbix-pgsql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-zabbix}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-zabbix}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-zabbix}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Zabbix server ─────────────────────────────────────────────────
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:${ZABBIX_IMAGE_TAG:-alpine-7.0-latest}
+    container_name: zabbix-server
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: ${DB_USERNAME:-zabbix}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-zabbix}
+      # Cache/historial modestos para una VM de lab
+      ZBX_CACHESIZE: ${ZBX_CACHESIZE:-128M}
+      ZBX_HISTORYCACHESIZE: ${ZBX_HISTORYCACHESIZE:-64M}
+      ZBX_TRENDCACHESIZE: ${ZBX_TRENDCACHESIZE:-64M}
+    ports:
+      - "${SERVER_PORT:-10051}:10051"   # escucha de agents (active/Sender)
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Zabbix web (nginx + php) ──────────────────────────────────────
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:${ZABBIX_IMAGE_TAG:-alpine-7.0-latest}
+    container_name: zabbix-web
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: ${DB_USERNAME:-zabbix}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-zabbix}
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_PORT: ${SERVER_PORT:-10051}
+      PHP_TZ: ${PHP_TIMEZONE:-America/Argentina/Buenos_Aires}
+    ports:
+      - "${WEB_PORT:-8080}:8080"        # alcanzable desde dc1 (proxy)
+    depends_on:
+      - zabbix-server
+
+  # ── Zabbix agent (monitorea la VM misma) ──────────────────────────
+  # NOTA: para métricas del SO de la VM (CPU/disco/red) conviene un
+  # zabbix-agent2 NATIVO en la VM (ver README); este contenedor registra
+  # el host "vm-zabbix" y sirve para verificar agent <-> server.
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:${ZABBIX_IMAGE_TAG:-alpine-7.0-latest}
+    container_name: zabbix-agent
+    restart: unless-stopped
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_ACTIVESERVERS: zabbix-server:${SERVER_PORT:-10051}
+      ZBX_HOSTNAME: ${AGENT_HOSTNAME:-vm-zabbix}
+    depends_on:
+      - zabbix-server
+
+volumes:
+  pgdata:

@@ -136,8 +136,11 @@ services:
   # EN DESARROLLO (fases posteriores)
   # ------------------------------------------------------------------
   # webmail:      Roundcube                     → services/webmail  (Fase 4)
-  # monitoring:   Netdata / Grafana             → services/monitoring (Fase 6)
   # apps:         apps internas                 → services/apps      (Fase 5)
+  #
+  # MONITOREO: Zabbix NO va acá → corre en la VM 192.168.122.4 con su
+  # PROPIO compose (services/zabbix). La web se publica con el server
+  # block zabbix.sudoers.lan de services/web/nginx.conf.
   #
   # Ejemplo de bloque (activar cuando exista la carpeta):
   #   webmail:
