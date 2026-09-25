@@ -53,6 +53,18 @@ sudo install -m 0755 -o root -g root "${SCRIPT_DIR}/logon.cmd" "${NETLOGON}/logo
 sudo install -m 0644 -o root -g root "${SCRIPT_DIR}/wallpaper.ps1" "${NETLOGON}/wallpaper.ps1"
 sudo install -m 0644 -o root -g root "${WALL_SRC}" "${NETLOGON}/ooo-wall.jpg"
 
+# Certificado de CA interna (para que el logon.cmd lo distribuya a los clientes Windows)
+CA_SRC="$(cd "${SCRIPT_DIR}/../.." && pwd)/services/web/tls/ca.crt"
+if [ -f "${CA_SRC}" ]; then
+    sudo install -m 0644 -o root -g root "${CA_SRC}" "${NETLOGON}/ca.crt"
+    echo "==> ca.crt instalado en ${NETLOGON}/ca.crt"
+else
+    echo "ATENCIÓN: no se encontró ${CA_SRC}"
+    echo "          Generá los certificados primero con:"
+    echo "          sudo bash services/web/tls-gen.sh"
+    echo "          y volvé a correr este script."
+fi
+
 if [[ ${#USERS[@]} -eq 0 ]]; then
     mapfile -t USERS < <(sudo samba-tool user list | grep -vE '^(administrator|krbtgt)$')
 fi
