@@ -14,12 +14,11 @@ dc1. NO va en el `docker-compose.yml` raíz (ese es para dc1).
    clientes de la LAN ──[agent 10050]── zabbix (192.168.0.3)
                                               │ :8080 (web)
                                               ▼
-        dc1 nginx: zabbix.sudoers.lan → http://192.168.0.3:8080
+                         zabbix.sudoers.lan → http://192.168.0.3:8080
 ```
 
 - Zabbix alcanza toda la LAN **directo** (agents **pasivos** en los clientes).
-- dc1 publica la web: `zabbix.sudoers.lan -> http://192.168.0.3:8080`
-  (server block en [`services/web/nginx.conf`](../web/nginx.conf)).
+- La UI se accede directamente: `zabbix.sudoers.lan -> http://192.168.0.3:8080`
 
 ## Composición
 
@@ -44,12 +43,13 @@ La web queda en `http://192.168.0.3:8080` — login por defecto
 
 ## Integración con el dominio
 
-1. **Reserva DHCP por MAC** en `.env` de dc1 → `DHCP_RESERVATIONS`
-   (`MAC=192.168.0.3=zabbix`) y **DNS** del DC (`zabbix.sudoers.lan` resuelve
-   al proxy `192.168.0.2`, que publica la web):
+1. **DNS**: `zabbix.sudoers.lan` resuelve directamente a `192.168.0.3`.
+   En el DC, con ticket de administrador:
    ```bash
-   sudo samba-tool dns add 192.168.0.2 sudoers.lan zabbix A 192.168.0.2 -U Administrator
+   sudo kinit administrator
+   sudo bash dc/dns-records.sh
    ```
+   La UI queda disponible en `http://zabbix.sudoers.lan:8080`.
 2. **Monitorear dc1** (`192.168.0.2`): instalar `zabbix-agent2` nativo en dc1
    con `Server=192.168.0.3`, `ServerActive=192.168.0.3:10051`. En
    `server/nftables.conf` abrir el puerto del agente para el origen del

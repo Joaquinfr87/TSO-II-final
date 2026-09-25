@@ -5,7 +5,8 @@ set -euo pipefail
 # dc/dns-records.sh — Registros A de servicios públicos (idempotente).
 #
 # Crea/verifica en el DNS AD los nombres que publican servicios web.
-# Todos apuntan SIEMPRE al proxy (192.168.0.2), NUNCA a la máquina.
+# Los servicios de admins apuntan al proxy (192.168.0.2); Zabbix es
+# una excepción y apunta directamente a su servidor (192.168.0.3).
 #
 # USAR el nombre del DC (no 127.0.0.1): samba-tool dns contra loopback
 # falla al bindear el RPC (NT_STATUS_INVALID_PARAMETER en el puerto
@@ -21,28 +22,52 @@ set -euo pipefail
 SERVER="dc1.sudoers.lan"
 ZONE="sudoers.lan"
 PROXY_IP="192.168.0.2"
+ZABBIX_IP="192.168.0.3"
 
 ensure_a() {
     local host="$1"
+    local target_ip="$2"
+    local old_ip="${3:-}"
+    local query=""
     local out=""
-    if samba-tool dns query "$SERVER" "$ZONE" "$host" A --use-kerberos=required 2>/dev/null \
-            | grep -qs "$PROXY_IP"; then
-        echo "  ok    $host.$ZONE  →  $PROXY_IP  (ya existe)"
+
+    query="$(samba-tool dns query "$SERVER" "$ZONE" "$host" A --use-kerberos=required 2>/dev/null || true)"
+
+    if printf '%s\n' "$query" | grep -Fqs "$target_ip"; then
+        echo "  ok    $host.$ZONE  →  $target_ip  (ya existe)"
         return
     fi
-    out="$(samba-tool dns add "$SERVER" "$ZONE" "$host" A "$PROXY_IP" --use-kerberos=required 2>&1)"
-    if printf '%s' "$out" | grep -qs "RECORD_ALREADY_EXISTS"; then
-        echo "  ok    $host.$ZONE  →  $PROXY_IP  (ya existía, sin cambios)"
+
+    if [ -n "$old_ip" ] && printf '%s\n' "$query" | grep -Fqs "$old_ip"; then
+        out="$(samba-tool dns update "$SERVER" "$ZONE" "$host" A "$old_ip" "$target_ip" --use-kerberos=required 2>&1)" || {
+            echo "  ERROR al actualizar $host.$ZONE:"
+            printf '%s\n' "$out"
+            exit 1
+        }
+        echo "  ok    $host.$ZONE  →  $target_ip  (actualizado)"
         return
     fi
-    echo "  ERROR al crear $host.$ZONE:"
-    printf '%s\n' "$out"
-    exit 1
+
+    if [ -n "$query" ]; then
+        echo "  ERROR: $host.$ZONE ya existe con otro valor:"
+        printf '%s\n' "$query"
+        exit 1
+    fi
+
+    out="$(samba-tool dns add "$SERVER" "$ZONE" "$host" A "$target_ip" --use-kerberos=required 2>&1)" || {
+        echo "  ERROR al crear $host.$ZONE:"
+        printf '%s\n' "$out"
+        exit 1
+    }
+    echo "  ok    $host.$ZONE  →  $target_ip  (creado)"
 }
 
 echo "==> Servicios web alojados en máquinas de admins (via proxy) ..."
-ensure_a david
-ensure_a nicolas
+ensure_a david "$PROXY_IP" "$PROXY_IP"
+ensure_a nicolas "$PROXY_IP" "$PROXY_IP"
+
+echo "==> Zabbix (acceso directo) ..."
+ensure_a zabbix "$ZABBIX_IP" "$PROXY_IP"
 
 echo
-echo "Listo. Verificar con: dig david.sudoers.lan / dig nicolas.sudoers.lan"
+echo "Listo. Verificar con: dig david.sudoers.lan / dig nicolas.sudoers.lan / dig zabbix.sudoers.lan"

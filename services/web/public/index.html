@@ -196,7 +196,7 @@
     <main>
         <section id="servicios">
             <h2>Servicios</h2>
-            <p class="sub">Todo el acceso es por nombre vía proxy inverso Nginx, ahora con TLS (CA interna).</p>
+            <p class="sub">Los servicios se acceden por nombre; Zabbix se publica directamente en el servidor de monitoreo.</p>
             <div class="services">
                 <a class="card" href="https://web.sudoers.lan">
                     <span class="t"><span class="ico">🌐</span> Sitio principal</span>
@@ -222,11 +222,11 @@
                     <span class="url">https://webmail.sudoers.lan</span>
                     <span class="pill">en desarrollo</span>
                 </a>
-                <a class="card" href="https://dashboard.sudoers.lan">
-                    <span class="t"><span class="ico">📊</span> Monitoreo</span>
-                    <span class="desc">Estado del servidor y servicios (Netdata/Grafana) — Fase 6.</span>
-                    <span class="url">https://dashboard.sudoers.lan</span>
-                    <span class="pill">en desarrollo</span>
+                <a class="card" href="http://zabbix.sudoers.lan:8080">
+                    <span class="t"><span class="ico">Z</span> Monitoreo — Zabbix</span>
+                    <span class="desc">Estado de los servidores, servicios y alertas de la organización.</span>
+                    <span class="url">http://zabbix.sudoers.lan:8080</span>
+                    <span class="pill done">activo</span>
                 </a>
                 <a class="card" href="https://web.sudoers.lan">
                     <span class="t"><span class="ico">🗄️</span> Datos &amp; Correo</span>
@@ -270,6 +270,7 @@
                     <tr><td>Dirección</td><td>192.168.0.0/24 · única</td></tr>
                     <tr><td>Gateway</td><td>192.168.0.1 — router TP-Link TL-WR850N (DHCP apagado: lo maneja Kea)</td></tr>
                     <tr><td>Server / DC</td><td>192.168.0.2 — dc1.sudoers.lan (AD, DNS, DHCP, NTP)</td></tr>
+                    <tr><td>Monitoreo</td><td>192.168.0.3 — zabbix.sudoers.lan (Zabbix server + web)</td></tr>
                     <tr><td>Infraestructura</td><td>. 1 – .49 (reservas de infraestructura)</td></tr>
                     <tr><td>Equipos fijos</td><td>.50 – .99 (PCs admin .50–.52 y cajas)</td></tr>
                     <tr><td>Pool dinámico</td><td>.100 – .199 (Kea) · DNS 192.168.0.2 · dominio sudoers.lan</td></tr>

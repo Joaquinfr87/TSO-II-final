@@ -16,7 +16,7 @@ dc/
 ├── shares.conf          ← recursos de archivo AD ([departamentos], [homes], [respaldo])
 ├── krb5.conf            ← modelo de /etc/krb5.conf (lo genera provision.sh)
 ├── add-users-groups.sh  ← grupos y usuarios de la organización (idempotente)
-├── dns-records.sh       ← registros A de servicios publicados (via proxy, idempotente)
+├── dns-records.sh       ← registros A de servicios (proxy; Zabbix directo, idempotente)
 └── password-policy.sh   ← política de contraseñas del dominio
 ```
 
