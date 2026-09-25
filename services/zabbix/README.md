@@ -12,13 +12,13 @@ dc1. NO va en el `docker-compose.yml` raíz (ese es para dc1).
 
 ```
    clientes de la LAN ──[agent 10050]── zabbix (192.168.0.3)
-                                              │ :8080 (web)
-                                              ▼
-                         zabbix.sudoers.lan → http://192.168.0.3:8080
+                                               │ :80 (web pública)
+                                               ▼
+                          zabbix.sudoers.lan → 192.168.0.3
 ```
 
 - Zabbix alcanza toda la LAN **directo** (agents **pasivos** en los clientes).
-- La UI se accede directamente: `zabbix.sudoers.lan -> http://192.168.0.3:8080`
+- La UI se accede directamente: `http://zabbix.sudoers.lan`
 
 ## Composición
 
@@ -26,7 +26,7 @@ dc1. NO va en el `docker-compose.yml` raíz (ese es para dc1).
 | --- | --- |
 | `postgres` | `postgres:16-alpine` — BD (volumen `pgdata`) |
 | `zabbix-server` | `zabbix/zabbix-server-pgsql` — recolección + alertas (10051) |
-| `zabbix-web` | `zabbix/zabbix-web-nginx-pgsql` — UI (puerto 8080) |
+| `zabbix-web` | `zabbix/zabbix-web-nginx-pgsql` — UI (puerto público 80) |
 | `zabbix-agent` | agent2 container — host de prueba (métricas reales: agent nativo) |
 
 ## Despliegue (en el server zabbix)
@@ -38,7 +38,8 @@ docker compose up -d
 docker compose ps           # verificar (postgres healthy, server/web/agent up)
 ```
 
-La web queda en `http://192.168.0.3:8080` — login por defecto
+La web queda en `http://zabbix.sudoers.lan` (el contenedor escucha internamente en
+`8080`) — login por defecto
 `Admin/zabbix` (**cambiar ya**).
 
 ## Integración con el dominio
@@ -49,7 +50,7 @@ La web queda en `http://192.168.0.3:8080` — login por defecto
    sudo kinit administrator
    sudo bash dc/dns-records.sh
    ```
-   La UI queda disponible en `http://zabbix.sudoers.lan:8080`.
+   La UI queda disponible en `http://zabbix.sudoers.lan`.
 2. **Monitorear dc1** (`192.168.0.2`): instalar `zabbix-agent2` nativo en dc1
    con `Server=192.168.0.3`, `ServerActive=192.168.0.3:10051`. En
    `server/nftables.conf` abrir el puerto del agente para el origen del

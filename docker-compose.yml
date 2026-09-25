@@ -140,7 +140,7 @@ services:
   #
   # MONITOREO: Zabbix NO va acá → corre en un server Debian FÍSICO
   # dedicado (zabbix, 192.168.0.3) con su PROPIO compose (services/zabbix).
-  # La web se accede directamente por DNS en `zabbix.sudoers.lan:8080`; el
+  # La web se accede directamente por DNS en `http://zabbix.sudoers.lan`; el
   # registro DNS se administra desde `dc/dns-records.sh`.
   #
   # Ejemplo de bloque (activar cuando exista la carpeta):

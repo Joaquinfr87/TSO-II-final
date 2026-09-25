@@ -43,7 +43,7 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 - **zabbix** = `192.168.0.3` — **server Debian FÍSICO dedicado**
   (solo Zabbix server + web UI). **No es una VM** (se descartó la idea de la
   VM/laptop). Alcanzable de forma directa por toda la LAN (sin NAT). Web
-  publicada directamente como `zabbix.sudoers.lan` → `192.168.0.3:8080`.
+  publicada directamente como `zabbix.sudoers.lan` → `192.168.0.3:80`.
   El server consulta agents en **modo pasivo** (abrir
   `10050` en los clientes con origen `192.168.0.3`). Reserva por MAC en
   `.1–.49` (infraestructura); hostname `zabbix`.
