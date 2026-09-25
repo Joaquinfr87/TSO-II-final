@@ -32,22 +32,21 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 - **Reservas por MAC:** se configuran en `.env` → `DHCP_RESERVATIONS`
   (formato `"MAC=IP=hostname;…"`), que el entrypoint de Kea convierte a
   reservas del subnet. Los PCs de los admins ocupan `.50–.52` (coincide con
-  `admin_ips` del firewall).
+  `admin_ips` del firewall); el server Zabbix `zabbix` ocupa `.3`
+  (infraestructura).
 - **AD:** dominio/realm `SUDOERS.LAN`, NetBIOS `SUDOERS`, Kerberos realm `SUDOERS.LAN`.
 
 ## Máquinas
 
-- **dc1** = `192.168.0.2` — el host físico (DC Samba + Docker + resto). Es la
-  única máquina "real"; el resto son VMs/equipos que le cuelgan.
-- **VM Zabbix** = `192.168.122.4` — máquina virtual en dc1 (libvirt/KVM), red
-  **NAT** `192.168.122.0/24` (virbr0). Único rol: **Zabbix server + web UI**
-  (monitoreo). No hay bridge en el host, así que NAT es la única opción.
-  ATENCIÓN (consecuencia del NAT): ninguna máquina de la LAN puede iniciar
-  conexión hacia `192.168.122.4`. Se publica SOLO vía el proxy inverso como
-  `zabbix.sudoers.lan` → `192.168.122.4` (mismo patrón que david/nicolas).
-  El monitoreo en sentido inverso no tiene problema: la VM sale por la red del
-  host (con agents en **modo activo**, que empujan hacia el server, no hace
-  falta abrir puertos entrantes en los clientes).
+- **dc1** = `192.168.0.2` — el host físico principal (DC Samba + Docker +
+  resto de servicios). Es la máquina "siempre encendida".
+- **zabbix** = `192.168.0.3` — **server Debian FÍSICO dedicado**
+  (solo Zabbix server + web UI). **No es una VM** (se descartó la idea de la
+  VM/laptop). Alcanzable de forma directa por toda la LAN (sin NAT). Web
+  publicada vía el proxy como `zabbix.sudoers.lan` → `192.168.0.3:8080`
+  (patrón david/nicolas). El server consulta agents en **modo pasivo** (abrir
+  `10050` en los clientes con origen `192.168.0.3`). Reserva por MAC en
+  `.1–.49` (infraestructura); hostname `zabbix`.
 - **Equipos de admins:** `pc-joaquin .50`, `pc-david .51`, `pc-nicolas .52`
   (fijos, `.50–.99`); usuarios dinámicos en `.100–.199`.
 
@@ -87,7 +86,7 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 | Base de datos | PostgreSQL (+MariaDB si hace falta) | CONTENEDOR (`services/database`) |
 | Impresión | CUPS | CONTENEDOR (`services/print`) |
 | Gestión Docker | Portainer | CONTENEDOR |
-| Monitoreo | Zabbix (server + web; agents en hosts) | VM `192.168.122.4` — `services/zabbix` (compose propio) |
+| Monitoreo | Zabbix (server + web; agents en hosts) | Server Debian físico `zabbix` (`192.168.0.3`) — `services/zabbix` (compose propio) |
 | Backup | restic/borg | NATIVO cron |
 
 ## Estructura del repo
@@ -104,7 +103,7 @@ TSO-II-final/
 ├── services/            ← por servicio contenedor (dhcp, web, mail, db, print; webmail/monitoring/apps pendientes)
 └── docs/                ← TODA la documentación (arquitectura, futuro: red, seguridad, backup…)
 
-Máquinas: dc1 (host físico, 192.168.0.2) + VM Zabbix (192.168.122.4, NAT).
+Máquinas: dc1 (host físico, 192.168.0.2) + zabbix (server Debian físico dedicado, 192.168.0.3).
 ```
 
 ## Flujo de trabajo habitual

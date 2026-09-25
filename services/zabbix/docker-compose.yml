@@ -1,14 +1,14 @@
 # =====================================================================
-# Zabbix (monitoreo) — docker-compose PROPIO que corre EN LA VM
-# 192.168.122.4 (libvirt NAT), NO en dc1.
+# Zabbix (monitoreo) — docker-compose PROPIO que corre en el server
+# Debian FÍSICO 'zabbix' (192.168.0.3), NO en dc1.
 #
 #   cd services/zabbix
 #   cp .env.example .env        # completar DB_PASSWORD
-#   docker compose up -d        # (esto se ejecuta DENTRO de la VM)
+#   docker compose up -d        # (esto se ejecuta EN el server zabbix)
 #
-# Motivo del compose aparte: la VM es una máquina distinta del host
+# Motivo del compose aparte: el server zabbix es una máquina distinta de
 # dc1, así que no forma parte del compose raíz (que es para dc1).
-# web publicada como zabbix.sudoers.lan -> 192.168.122.4:8080
+# Web publicada como zabbix.sudoers.lan -> 192.168.0.3:8080
 # (server block en services/web/nginx.conf).
 # =====================================================================
 
