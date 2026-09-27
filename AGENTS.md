@@ -79,8 +79,8 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 | NTP | chrony | NATIVO |
 | Firewall / SSH | nftables / sshd endurecido | NATIVO (`server/`) |
 | DHCP | Kea | CONTENEDOR (`services/dhcp`, host network) |
-| Correo | Postfix + Dovecot (auth LDAP AD) | CONTENEDOR (`services/mail`) |
-| Webmail | Roundcube | CONTENEDOR |
+| Correo | Postfix + Dovecot (auth local; LDAP AD pendiente) | CONTENEDOR (`services/mail`) |
+| Webmail | Roundcube | CONTENEDOR (`services/webmail`) |
 | Archivos | Shares SMB del DC (perms por grupos AD) | NATIVO (smb.conf del DC) |
 | Web/Proxy inverso | Nginx `*.sudoers.lan` + TLS | CONTENEDOR (`services/web`) |
 | Base de datos | PostgreSQL (+MariaDB si hace falta) | CONTENEDOR (`services/database`) |
@@ -100,7 +100,7 @@ TSO-II-final/
 ├── dc/                  ← Samba AD DC nativo (provision.sh, shares.conf, krb5, scripts)
 ├── server/              ← host: nftables, sshd, chrony, deploy
 ├── clients/             ← guías para unir clientes Linux/Windows al dominio (pendiente)
-├── services/            ← por servicio contenedor (dhcp, web, mail, db, print; webmail/monitoring/apps pendientes)
+├── services/            ← por servicio contenedor (dhcp, web, mail, webmail, db, print; monitoring/apps pendientes)
 └── docs/                ← TODA la documentación (arquitectura, futuro: red, seguridad, backup…)
 
 Máquinas: dc1 (host físico, 192.168.0.2) + zabbix (server Debian físico dedicado, 192.168.0.3).

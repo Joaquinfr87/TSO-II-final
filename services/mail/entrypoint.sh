@@ -78,7 +78,7 @@ echo ">>> Configurando Dovecot..."
 if [ -n "$MAIL_USERS" ]; then
     echo ">>> Creando usuarios de correo (MAIL_USERS)..."
     for ENTRY in $MAIL_USERS; do
-        IFS=: read -r USERNAME _ PASSWORD <<< "$ENTRY"
+        IFS=: read -r USERNAME PASSWORD <<< "$ENTRY"
         [ -z "$USERNAME" ] && continue
 
         if id "$USERNAME" &>/dev/null; then

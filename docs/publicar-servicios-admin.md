@@ -101,3 +101,8 @@ No hay NAT, ni apertura de puertos en el router, ni reenvío: la red es única
 | --- | --- | --- | --- | --- |
 | `david.sudoers.lan` | `192.168.0.51` | 8080 | David | activo en nginx |
 | `nicolas.sudoers.lan` | `192.168.0.52` | 8080 | Nicolás | activo en nginx |
+
+> Los servicios alojados **en el propio server** no entran en esta tabla:
+> su mapa vive en [`services/web/README.md`](../services/web/README.md)
+> (`print`, `portainer`, `webmail`, portal). El webmail es
+> `webmail.sudoers.lan` → contenedor `tso-webmail:80`.

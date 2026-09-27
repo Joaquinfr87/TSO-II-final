@@ -16,7 +16,7 @@ dc/
 ├── shares.conf          ← recursos de archivo AD ([departamentos], [homes], [respaldo])
 ├── krb5.conf            ← modelo de /etc/krb5.conf (lo genera provision.sh)
 ├── add-users-groups.sh  ← grupos y usuarios de la organización (idempotente)
-├── dns-records.sh       ← registros A de servicios (proxy; Zabbix directo, idempotente)
+├── dns-records.sh       ← registros A de servicios (mail, webmail, proxy; Zabbix directo, idempotente)
 └── password-policy.sh   ← política de contraseñas del dominio
 ```
 
@@ -35,7 +35,7 @@ sudo bash dc/provision.sh
 #   ADMIN_PASS='...' sudo bash dc/provision.sh
 
 sudo bash dc/add-users-groups.sh   # grupos + usuarios AD
-sudo bash dc/dns-records.sh        # registros A de servicios publicados
+sudo bash dc/dns-records.sh        # registros A de servicios publicados (mail, webmail, proxy, zabbix)
 sudo bash dc/password-policy.sh    # hardening de contraseñas
 ```
 

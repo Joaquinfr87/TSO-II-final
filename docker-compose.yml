@@ -76,10 +76,32 @@ services:
       MAIL_DOMAIN: ${MAIL_DOMAIN:-mail.sudoers.lan}
       MAIL_USERS: ${MAIL_USERS:-}
     volumes:
-      - mail_data:/var/mail
+      - mail_data:/home
     networks:
       - tso-net
     restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Webmail (Roundcube)
+  # ------------------------------------------------------------------
+  webmail:
+    image: roundcube/roundcubemail:${ROUNDCUBE_IMAGE_TAG:-1.7.4-apache}
+    container_name: tso-webmail
+    restart: unless-stopped
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: tls://tso-mail
+      ROUNDCUBEMAIL_DEFAULT_PORT: "143"
+      ROUNDCUBEMAIL_SMTP_SERVER: tls://tso-mail
+      ROUNDCUBEMAIL_SMTP_PORT: "587"
+      ROUNDCUBEMAIL_USERNAME_DOMAIN: ${DNS_DOMAIN:-sudoers.lan}
+      ROUNDCUBEMAIL_DES_KEY: ${ROUNDCUBE_DES_KEY:?ROUNDCUBE_DES_KEY debe estar definido en .env}
+    volumes:
+      - webmail_db:/var/roundcube/db
+      - ./services/webmail/config:/var/roundcube/config:ro
+    depends_on:
+      - mail
+    networks:
+      - tso-net
 
   # ------------------------------------------------------------------
   # Base de datos (PostgreSQL)
@@ -135,28 +157,19 @@ services:
   # ------------------------------------------------------------------
   # EN DESARROLLO (fases posteriores)
   # ------------------------------------------------------------------
-  # webmail:      Roundcube                     → services/webmail  (Fase 4)
   # apps:         apps internas                 → services/apps      (Fase 5)
   #
   # MONITOREO: Zabbix NO va acá → corre en un server Debian FÍSICO
   # dedicado (zabbix, 192.168.0.3) con su PROPIO compose (services/zabbix).
   # La web se accede directamente por DNS en `http://zabbix.sudoers.lan`; el
   # registro DNS se administra desde `dc/dns-records.sh`.
-  #
-  # Ejemplo de bloque (activar cuando exista la carpeta):
-  #   webmail:
-  #     build: ./services/webmail
-  #     container_name: tso-webmail
-  #     ports:
-  #       - "8081:80"
-  #     networks: [ tso-net ]
-  #     restart: unless-stopped
   # + server block en services/web/nginx.conf
 
 # Volúmenes con nombre: los datos persisten aunque los contenedores se borren.
 volumes:
   dhcp_state:
   mail_data:
+  webmail_db:
   db_data:
   print_output:
   portainer_data:

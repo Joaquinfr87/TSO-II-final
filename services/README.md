@@ -1,6 +1,6 @@
 # services/ — Servicios en contenedores (heredados y adaptados del lab)
 
-Cada servicio tiene su carpeta con Dockerfile y configuración. El
+Cada servicio tiene su carpeta con su configuración; algunos usan una imagen oficial. El
 `docker-compose.yml` de la raíz es la fuente de verdad que los declara.
 
 | Carpeta | Servicio | Estado |
@@ -12,7 +12,7 @@ Cada servicio tiene su carpeta con Dockerfile y configuración. El
 | [`print/`](print/README.md) | CUPS + PDF virtual | listo (heredado) |
 | [`dns/`](dns/README.md) | Bind9 — **RETIRADO**: el DNS lo da el DC | documentado |
 | [`zabbix/`](zabbix/README.md) | Zabbix (monitoreo) — **server Debian físico `192.168.0.3`, compose propio** | nuevo |
-| [`webmail/`](webmail/README.md) | Roundcube (Fase 4) | **pendiente (vacío)** |
+| [`webmail/`](webmail/README.md) | Roundcube | listo (webmail local) |
 | [`monitoring/`](monitoring/README.md) | Netdata / Grafana — **superado por Zabbix** | descartado |
 | [`apps/`](apps/README.md) | Apps internas (Fase 5) | **pendiente (vacío)** |
 

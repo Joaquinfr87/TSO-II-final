@@ -90,6 +90,25 @@ else
 fi
 if [ ! -f "$ROOT/.env" ]; then
     echo "    ATENCIÓN: falta $ROOT/.env (copiar de .env.example) → compose usa defaults."
+else
+    # El webmail (Roundcube) declara ROUNDCUBE_DES_KEY como obligatoria:
+    # sin ella la interpolación de compose aborta TODO el deploy.
+    if ! grep -qE '^ROUNDCUBE_DES_KEY=[^[:space:]#]+' "$ROOT/.env"; then
+        echo "    ERROR: falta ROUNDCUBE_DES_KEY en $ROOT/.env → docker compose aborta."
+        echo "      echo \"ROUNDCUBE_DES_KEY=\$(openssl rand -hex 32)\" >> $ROOT/.env"
+        exit 1
+    fi
+    if grep -qE '^ROUNDCUBE_DES_KEY=CambiarEstaClave' "$ROOT/.env"; then
+        echo "    ATENCIÓN: ROUNDCUBE_DES_KEY sigue con el valor de ejemplo del repo."
+    fi
+    # Sin cuentas de correo no hay nadie que pueda entrar al webmail.
+    MAIL_USERS="$(grep -E '^MAIL_USERS=' "$ROOT/.env" | tail -1 | cut -d= -f2- | tr -d "\"'" | xargs)"
+    if [ -z "$MAIL_USERS" ]; then
+        echo "    ATENCIÓN: MAIL_USERS vacío en $ROOT/.env → el webmail no tendrá cuentas."
+        echo "      MAIL_USERS=\"joaquin:Pass1! david:Pass2!\"   (formato user:pass user2:pass2)"
+    elif printf '%s' "$MAIL_USERS" | grep -q "CambiarMe"; then
+        echo "    ATENCIÓN: MAIL_USERS sigue con las claves de ejemplo del repo (.env.example)."
+    fi
 fi
 cd "$ROOT"
 sudo docker compose up -d --build

@@ -4,7 +4,7 @@ set -euo pipefail
 # ===================================================================
 # dc/dns-records.sh — Registros A de servicios públicos (idempotente).
 #
-# Crea/verifica en el DNS AD los nombres que publican servicios web.
+# Crea/verifica en el DNS AD los nombres que publican servicios internos.
 # Los servicios de admins apuntan al proxy (192.168.0.2); Zabbix es
 # una excepción y apunta directamente a su servidor (192.168.0.3).
 #
@@ -62,7 +62,9 @@ ensure_a() {
     echo "  ok    $host.$ZONE  →  $target_ip  (creado)"
 }
 
-echo "==> Servicios web alojados en máquinas de admins (via proxy) ..."
+echo "==> Servicios del DC y web (via proxy) ..."
+ensure_a mail "$PROXY_IP" "$PROXY_IP"
+ensure_a webmail "$PROXY_IP" "$PROXY_IP"
 ensure_a david "$PROXY_IP" "$PROXY_IP"
 ensure_a nicolas "$PROXY_IP" "$PROXY_IP"
 
@@ -70,4 +72,4 @@ echo "==> Zabbix (acceso directo) ..."
 ensure_a zabbix "$ZABBIX_IP" "$PROXY_IP"
 
 echo
-echo "Listo. Verificar con: dig david.sudoers.lan / dig nicolas.sudoers.lan / dig zabbix.sudoers.lan"
+echo "Listo. Verificar con: dig mail.sudoers.lan / dig webmail.sudoers.lan / dig david.sudoers.lan / dig nicolas.sudoers.lan / dig zabbix.sudoers.lan"
