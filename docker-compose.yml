@@ -104,6 +104,36 @@ services:
       - tso-net
 
   # ------------------------------------------------------------------
+  # Gestor de archivos web (Filebrowser) — sobre los shares SMB del DC
+  # ------------------------------------------------------------------
+  filemanager:
+    image: filebrowser/filebrowser:${FILEBROWSER_TAG:-v2.63.23}
+    container_name: tso-files
+    restart: unless-stopped
+    # root + grupo primario = grupo del share (FILES_GID): los archivos que
+    # se crean desde la web quedan root:<share-group> y el equipo puede
+    # escribirlos también por SMB (fileMode 0664 / dirMode 0775).
+    user: "0:${FILES_GID:-0}"
+    entrypoint: ["/bin/tini", "--", "/bin/sh", "/entrypoint.sh"]
+    environment:
+      FILES_ADMIN_USER: ${FILES_ADMIN_USER:-admin}
+      FILES_ADMIN_PASS: ${FILES_ADMIN_PASS:?FILES_ADMIN_PASS debe estar definido en .env}
+      FILES_USERS: ${FILES_USERS:-}
+      FILES_MIN_PASS_LEN: ${FILES_MIN_PASS_LEN:-10}
+      FILES_FILE_MODE: ${FILES_FILE_MODE:-0664}
+      FILES_DIR_MODE: ${FILES_DIR_MODE:-0775}
+      FILES_UMASK: ${FILES_UMASK:-002}
+    volumes:
+      - ./services/filemanager/entrypoint.sh:/entrypoint.sh:ro
+      - files_config:/config
+      - files_db:/database
+      # Solo los shares de equipo (los homes personales NO se publican)
+      - ${FILES_SHARES_DIR:-/srv/samba}/departamentos:/srv/departamentos
+      - ${FILES_SHARES_DIR:-/srv/samba}/respaldo:/srv/respaldo
+    networks:
+      - tso-net
+
+  # ------------------------------------------------------------------
   # Base de datos (PostgreSQL)
   # ------------------------------------------------------------------
   database:
@@ -170,6 +200,8 @@ volumes:
   dhcp_state:
   mail_data:
   webmail_db:
+  files_config:
+  files_db:
   db_data:
   print_output:
   portainer_data:

@@ -109,6 +109,26 @@ else
     elif printf '%s' "$MAIL_USERS" | grep -q "CambiarMe"; then
         echo "    ATENCIÓN: MAIL_USERS sigue con las claves de ejemplo del repo (.env.example)."
     fi
+    # El gestor de archivos (Filebrowser) declara FILES_ADMIN_PASS obligatoria.
+    if ! grep -qE '^FILES_ADMIN_PASS=[^[:space:]#]+' "$ROOT/.env"; then
+        echo "    ERROR: falta FILES_ADMIN_PASS en .env → docker compose aborta."
+        echo "      echo 'FILES_ADMIN_PASS=Admin2026!' >> $ROOT/.env"
+        exit 1
+    fi
+    if grep -qE '^FILES_ADMIN_PASS=CambiarMeFiles' "$ROOT/.env"; then
+        echo "    ATENCIÓN: FILES_ADMIN_PASS sigue con el valor de ejemplo del repo."
+    fi
+    # gid del grupo dueño de los shares: sin él, los archivos creados desde
+    # la web quedan root:root y nadie puede escribirlos por SMB.
+    if ! grep -qE '^FILES_GID=[0-9]+' "$ROOT/.env"; then
+        FG="$(stat -c %g /srv/samba/departamentos 2>/dev/null || true)"
+        if [ -n "$FG" ]; then
+            echo "    ATENCIÓN: FILES_GID vacío en .env (gid de los shares = $FG):"
+            echo "      echo \"FILES_GID=$FG\" >> $ROOT/.env"
+        else
+            echo "    ATENCIÓN: FILES_GID vacío y todavía no existe /srv/samba/departamentos."
+        fi
+    fi
 fi
 cd "$ROOT"
 sudo docker compose up -d --build

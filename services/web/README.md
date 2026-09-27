@@ -21,14 +21,21 @@ hacia los servicios de la organización. **Termina TLS** con una CA interna.
 | `print.sudoers.lan` | `tso-print:631` (CUPS) |
 | `portainer.sudoers.lan` | `tso-portainer:9000` (Portainer HTTP interno) |
 | `webmail.sudoers.lan` | `tso-webmail:80` — Roundcube |
+| `archivos.sudoers.lan` | `tso-files:80` — Filebrowser (gestor de los shares) |
 | `zabbix.sudoers.lan` | `192.168.0.3:80` — Zabbix directo |
 | `joaquin.sudoers.lan` | estático — página del equipo (`/equipo/joaquin.html`) |
 | `david.sudoers.lan` | `192.168.0.51:8080` — servicio web de la máquina de David |
 | `nicolas.sudoers.lan` | `192.168.0.52:8080` — servicio web de la máquina de Nicolás |
 
 Los servicios publicados por proxy usan `http://…` → `https://…` (301). Zabbix
-es la excepción: se accede directamente en `http://zabbix.sudoers.lan`; el
-webmail se publica como `https://webmail.sudoers.lan`.
+es la excepción: se accede directamente en `http://zabbix.sudoers.lan`;
+`webmail` y `archivos` se publican como `https://…`.
+
+> ⚠️ `nginx.conf` y `public/` van **copiados dentro de la imagen** (ver
+> `Dockerfile`): cualquier cambio de server block o del portal necesita
+> `docker compose up -d --build web`. Con `restart` no se recargan y el
+> navegador falla con `tlsv1 unrecognized name` (cae en el bloque
+> catch-all que rechaza el handshake).
 
 `david`/`nicolas` son servicios web corriendo **en las máquinas de los admins**
 (.51/.52) expuestos por este proxy. Roles, puerto y registro:
@@ -62,6 +69,7 @@ docker compose up -d --build web
 ## Estado
 
 - [x] Webmail Roundcube publicado en `webmail.sudoers.lan`.
+- [x] Gestor de archivos (Filebrowser) publicado en `archivos.sudoers.lan`.
 - [x] Zabbix disponible directamente en `http://zabbix.sudoers.lan`.
 - [ ] Activar aplicaciones internas cuando exista su contenedor.
 

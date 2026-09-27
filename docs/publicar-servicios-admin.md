@@ -104,5 +104,6 @@ No hay NAT, ni apertura de puertos en el router, ni reenvío: la red es única
 
 > Los servicios alojados **en el propio server** no entran en esta tabla:
 > su mapa vive en [`services/web/README.md`](../services/web/README.md)
-> (`print`, `portainer`, `webmail`, portal). El webmail es
-> `webmail.sudoers.lan` → contenedor `tso-webmail:80`.
+> (`print`, `portainer`, `webmail`, `archivos`, portal). El webmail es
+> `webmail.sudoers.lan` → contenedor `tso-webmail:80` y el gestor de
+> archivos es `archivos.sudoers.lan` → contenedor `tso-files:80`.

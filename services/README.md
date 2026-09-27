@@ -13,11 +13,13 @@ Cada servicio tiene su carpeta con su configuración; algunos usan una imagen of
 | [`dns/`](dns/README.md) | Bind9 — **RETIRADO**: el DNS lo da el DC | documentado |
 | [`zabbix/`](zabbix/README.md) | Zabbix (monitoreo) — **server Debian físico `192.168.0.3`, compose propio** | nuevo |
 | [`webmail/`](webmail/README.md) | Roundcube | listo (webmail local) |
+| [`filemanager/`](filemanager/README.md) | Filebrowser — gestor web de los shares del DC | listo |
 | [`monitoring/`](monitoring/README.md) | Netdata / Grafana — **superado por Zabbix** | descartado |
 | [`apps/`](apps/README.md) | Apps internas (Fase 5) | **pendiente (vacío)** |
 
-> `files` del lab quedó **fuera**: los recursos SMB los sirve el DC nativo
-> (`dc/shares.conf`). NFS/share aislado se suma dentro de `apps/` si hace falta.
+> Los **datos** de los archivos viven en el DC nativo (`/srv/samba`, ver
+> `dc/shares.conf`); `filemanager/` es solo la puerta web sobre esos mismos
+> directorios. NFS/share aislado se suma dentro de `apps/` si hace falta.
 
 ## Cómo agregar un servicio nuevo
 

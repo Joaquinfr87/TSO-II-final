@@ -65,6 +65,7 @@ ensure_a() {
 echo "==> Servicios del DC y web (via proxy) ..."
 ensure_a mail "$PROXY_IP" "$PROXY_IP"
 ensure_a webmail "$PROXY_IP" "$PROXY_IP"
+ensure_a archivos "$PROXY_IP" "$PROXY_IP"
 ensure_a david "$PROXY_IP" "$PROXY_IP"
 ensure_a nicolas "$PROXY_IP" "$PROXY_IP"
 
@@ -72,4 +73,4 @@ echo "==> Zabbix (acceso directo) ..."
 ensure_a zabbix "$ZABBIX_IP" "$PROXY_IP"
 
 echo
-echo "Listo. Verificar con: dig mail.sudoers.lan / dig webmail.sudoers.lan / dig david.sudoers.lan / dig nicolas.sudoers.lan / dig zabbix.sudoers.lan"
+echo "Listo. Verificar con: dig mail.sudoers.lan / dig webmail.sudoers.lan / dig archivos.sudoers.lan / dig david.sudoers.lan / dig nicolas.sudoers.lan / dig zabbix.sudoers.lan"
