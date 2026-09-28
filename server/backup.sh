@@ -304,6 +304,41 @@ write_status() {
     } >"$STATUS_FILE"
     chmod 600 "$STATUS_FILE" 2>/dev/null || true
     STATUS_WRITTEN=1
+    write_metrics "$state" "$rc" "$dur"
+}
+
+# Métricas para Prometheus (node_exporter --collector.textfile.directory).
+# El contenedor tso-node-exporter monta $STATE_DIR como /textfile y lee
+# backup.prom; las alertas de services/monitoring/prometheus/rules/backup.yml
+# salen de estos valores.
+write_metrics() {
+    local state="$1" rc="$2" dur="${3:-0}"
+    local state_v=0 now
+    [ "$state" = "OK" ] && state_v=1
+    now="$(date +%s)"
+    [ -n "$dur" ] || dur=0
+    local prom="$STATE_DIR/backup.prom" tmp
+    tmp="$prom.$$"
+    {
+        echo "# HELP tso_backup_state Resultado de la última corrida del backup (1 = OK, 0 = falló)."
+        echo "# TYPE tso_backup_state gauge"
+        echo "tso_backup_state $state_v"
+        echo "# HELP tso_backup_last_run_timestamp_seconds Momento Unix de la última corrida (OK o FAIL)."
+        echo "# TYPE tso_backup_last_run_timestamp_seconds gauge"
+        echo "tso_backup_last_run_timestamp_seconds $now"
+        echo "# HELP tso_backup_duration_seconds Duración de la última corrida del backup."
+        echo "# TYPE tso_backup_duration_seconds gauge"
+        echo "tso_backup_duration_seconds $dur"
+        echo "# HELP tso_backup_warnings Cantidad de avisos no fatales de la última corrida."
+        echo "# TYPE tso_backup_warnings gauge"
+        echo "tso_backup_warnings ${#WARNINGS[@]}"
+        echo "# HELP tso_backup_last_exit_code Código de salida del último backup."
+        echo "# TYPE tso_backup_last_exit_code gauge"
+        echo "tso_backup_last_exit_code ${rc:-0}"
+    } >"$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
+    chmod 644 "$tmp" 2>/dev/null || true
+    mv -f "$tmp" "$prom" 2>/dev/null || rm -f "$tmp"
+    return 0
 }
 
 # -------------------------------------------------------------------

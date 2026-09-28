@@ -1,0 +1,46 @@
+# ===================================================================
+# alertmanager.yml — Alertmanager (services/monitoring)
+#
+#   Correo saliente: contenedor tso-mail (Postfix de dc1) en tso-net.
+#   Postfix acepta relay desde 172.16/12 (mynetworks) y entrega
+#   localmente cualquier *@sudoers.lan → no hay que tocar Postfix.
+#   validar: amtool check-config services/monitoring/alertmanager/alertmanager.yml
+# ===================================================================
+
+global:
+  smtp_smarthost: "tso-mail:25"
+  smtp_from: "alertas@mail.sudoers.lan"
+  smtp_require_tls: false
+
+route:
+  receiver: "admins"
+  group_by: ["alertname", "severidad"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    # Las de severidad baja se agrupan y reenvían con menos urgencia
+    - receiver: "admins"
+      matchers:
+        - severidad = "baja"
+      group_interval: 30m
+      repeat_interval: 24h
+
+receivers:
+  - name: "admins"
+    email_configs:
+      - to: "joaquin@sudoers.lan, david@sudoers.lan, nicolas@sudoers.lan"
+        send_resolved: true
+
+# Una alerta de bajo nivel no interrumpe si ya hay una alta activa
+inhibit_rules:
+  - source_matchers:
+      - severidad = "alta"
+    target_matchers:
+      - severidad =~ "baja|info"
+    equal: ["alertname", "instance"]
+  - source_matchers:
+      - severidad = "media"
+    target_matchers:
+      - severidad = "baja"
+    equal: ["alertname", "instance"]

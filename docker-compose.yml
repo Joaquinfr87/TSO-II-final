@@ -185,11 +185,135 @@ services:
       - tso-net
 
   # ------------------------------------------------------------------
+  # Monitoreo — Prometheus + Grafana + Alertmanager (+ exporters)
+  #   services/monitoring/
+  #
+  #   * Solo Grafana se publica por el proxy → grafana.sudoers.lan
+  #   * Prometheus y Alertmanager escuchan SOLO en 127.0.0.1 del host
+  #     (acceso vía SSH tunnel: -L 9090:127.0.0.1:9090 / 9093)
+  #   * Alertas por correo → contenedor tso-mail (Postfix de dc1)
+  #   * Zabbix vive en el server físico 192.168.0.3 (services/zabbix)
+  # ------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_TAG:-v3.15.0}
+    container_name: tso-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+      # Permite recargar la config con: curl -X POST http://127.0.0.1:9090/-/reload
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./services/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./services/monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - alertmanager
+    networks:
+      - tso-net
+
+  alertmanager:
+    image: prom/alertmanager:${ALERTMANAGER_TAG:-v0.34.1}
+    container_name: tso-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./services/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - tso-net
+
+  # node_exporter: métricas del host dc1 + directorio de textfile
+  # (ahí server/backup.sh escribe backup.prom)
+  node-exporter:
+    image: prom/node-exporter:${NODE_EXPORTER_TAG:-v1.12.1}
+    container_name: tso-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.textfile.directory=/textfile
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+      - /var/lib/tso-backup:/textfile:ro
+    networks:
+      - tso-net
+
+  # cAdvisor: métricas de los contenedores (tso-*)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:${CADVISOR_TAG:-v0.55.1}
+    container_name: tso-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - tso-net
+
+  # Sondas de red: ¿responden DC y contenedores en su puerto/URL/DNS?
+  # "dc1" se resuelve a la IP del host (host-gateway) para probar el DC
+  # nativo (Samba + DNS) que corre fuera de Docker.
+  blackbox-exporter:
+    image: prom/blackbox-exporter:${BLACKBOX_TAG:-v0.28.0}
+    container_name: tso-blackbox
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    extra_hosts:
+      # El DC nativo se prueba por su IP de LAN (HOST_IP en .env)
+      - "dc1=${HOST_IP:-192.168.0.2}"
+    volumes:
+      - ./services/monitoring/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks:
+      - tso-net
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_TAG:-13.0.9}
+    container_name: tso-grafana
+    restart: unless-stopped
+    # Solo en localhost: el exterior entra por el proxy (grafana.sudoers.lan)
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD debe estar definido en .env}
+      GF_SECRET_KEY: ${GF_SECRET_KEY:?GF_SECRET_KEY debe estar definido en .env}
+      GF_SERVER_ROOT_URL: https://grafana.sudoers.lan
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_LOG_LEVEL: warn
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./services/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./services/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - tso-net
+
+  # ------------------------------------------------------------------
   # EN DESARROLLO (fases posteriores)
   # ------------------------------------------------------------------
   # apps:         apps internas                 → services/apps      (Fase 5)
   #
-  # MONITOREO: Zabbix NO va acá → corre en un server Debian FÍSICO
+  # MONITOREO (Zabbix): NO va acá → corre en un server Debian FÍSICO
   # dedicado (zabbix, 192.168.0.3) con su PROPIO compose (services/zabbix).
   # La web se accede directamente por DNS en `http://zabbix.sudoers.lan`; el
   # registro DNS se administra desde `dc/dns-records.sh`.
@@ -205,6 +329,9 @@ volumes:
   db_data:
   print_output:
   portainer_data:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
 
 # Red interna del proyecto (interconexión de contenedores).
 # Kea queda FUERA de esta red (network_mode: host).

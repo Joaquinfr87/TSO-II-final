@@ -1,0 +1,53 @@
+# ===================================================================
+# host.yml — Alertas del host dc1 (node_exporter)
+#   validar: promtool check rules services/monitoring/prometheus/rules/host.yml
+# ===================================================================
+groups:
+  - name: host
+    rules:
+      - alert: HostSinMonitoreo
+        expr: up{job=~"prometheus|node|cadvisor|blackbox"} == 0
+        for: 3m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "Dejó de reportar {{ $labels.job }} ({{ $labels.instance }})"
+          detalle: "Un target de Prometheus está caído: revisá `docker ps` en dc1."
+
+      - alert: HostCPUAlto
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 15m
+        labels:
+          severidad: media
+        annotations:
+          resumen: "CPU de {{ $labels.instance }} al {{ $value | humanizePercentage }} (>90%)"
+          detalle: "Sostenido 15 min. Mirá el dashboard Host en Grafana."
+
+      - alert: HostMemoriaBaja
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+        for: 10m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "Memoria disponible en {{ $labels.instance }} al {{ $value | humanizePercentage }} (<10%)"
+          detalle: "Riesgo de OOM. Revisá qué contenedor se come la RAM."
+
+      - alert: HostDiscoBajo
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!~"/boot.*"} 
+            / node_filesystem_size_bytes * 100 < 10
+        for: 10m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "Disco {{ $labels.mountpoint }} de {{ $labels.instance }} al {{ $value | humanizePercentage }} (<10%)"
+          detalle: "Liberá espacio (docker system prune / logs) antes de que se llene."
+
+      - alert: HostReiniciado
+        expr: node_time_seconds - node_boot_time_seconds < 600
+        for: 2m
+        labels:
+          severidad: info
+        annotations:
+          resumen: "{{ $labels.instance }} se reinició hace menos de 10 minutos"
+          detalle: "Si no fue planeado, revisá journalctl -b y el log de Zabbix."

@@ -1,0 +1,106 @@
+# ===================================================================
+# prometheus.yml — Prometheus del stack de monitoreo (services/monitoring)
+#
+#   docker compose up -d prometheus
+#   validar:  promtool check config services/monitoring/prometheus/prometheus.yml
+# ===================================================================
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    origen: dc1
+
+# Reglas de alerta (se validan con: promtool check rules <archivo>)
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# Destino de las alertas: Alertmanager (contenedor en tso-net)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # ── El propio Prometheus ──────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # ── Host dc1: node_exporter (SO + textfile del backup) ────────────
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # ── Contenedores: cAdvisor ───────────────────────────────────────
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # ── El exportador de pruebas (su endpoint /metrics) ──────────────
+  - job_name: blackbox
+    static_configs:
+      - targets: ["blackbox-exporter:9115"]
+
+  # ── Pruebas TCP: ¿responde cada servicio en su puerto? ───────────
+  # dc1 = el host (extra_hosts: dc1:host-gateway en el compose).
+  # Los tso-* se resuelven por DNS interno de Docker (red tso-net).
+  - job_name: probe-tcp
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          # DC nativo (Samba AD + DNS)
+          - dc1:53
+          - dc1:88
+          - dc1:389
+          - dc1:445
+          # Contenedores
+          - tso-web:443
+          - tso-mail:25
+          - tso-mail:993
+          - tso-db:5432
+          - tso-print:631
+          - tso-files:80
+          - tso-webmail:80
+          - tso-portainer:9443
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # ── Prueba DNS: el DC responde A para sudoers.lan ────────────────
+  - job_name: probe-dns
+    metrics_path: /probe
+    params:
+      module: [dns_resolver]
+    static_configs:
+      - targets: ["dc1:53"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # ── Prueba HTTP: respuestas 2xx en webs publicadas ───────────────
+  - job_name: probe-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://tso-grafana:3000/api/health
+          - http://tso-webmail/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

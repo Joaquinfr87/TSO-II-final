@@ -88,6 +88,35 @@ else
     echo "    ERROR: nginx.conf inválido → NO se tocan los contenedores."
     exit 1
 fi
+# Valida las configs del stack de monitoreo (services/monitoring).
+echo "    validando services/monitoring/ ..."
+if sudo docker run --rm --entrypoint promtool \
+        -v "$ROOT/services/monitoring/prometheus:/etc/prometheus:ro" \
+        "prom/prometheus:${PROMETHEUS_TAG:-v3.15.0}" \
+        check config /etc/prometheus/prometheus.yml >/dev/null; then
+    echo "    prometheus.yml + reglas OK"
+else
+    echo "    ERROR: configuración de Prometheus inválida → NO se tocan los contenedores."
+    exit 1
+fi
+if sudo docker run --rm --entrypoint amtool \
+        -v "$ROOT/services/monitoring/alertmanager:/etc/alertmanager:ro" \
+        "prom/alertmanager:${ALERTMANAGER_TAG:-v0.34.1}" \
+        check-config /etc/alertmanager/alertmanager.yml >/dev/null; then
+    echo "    alertmanager.yml OK"
+else
+    echo "    ERROR: configuración de Alertmanager inválida → NO se tocan los contenedores."
+    exit 1
+fi
+if sudo docker run --rm --entrypoint blackbox_exporter \
+        -v "$ROOT/services/monitoring/blackbox:/etc/blackbox:ro" \
+        "prom/blackbox-exporter:${BLACKBOX_TAG:-v0.28.0}" \
+        --config.check --config.file=/etc/blackbox/blackbox.yml >/dev/null; then
+    echo "    blackbox.yml OK"
+else
+    echo "    ERROR: configuración de blackbox inválida → NO se tocan los contenedores."
+    exit 1
+fi
 if [ ! -f "$ROOT/.env" ]; then
     echo "    ATENCIÓN: falta $ROOT/.env (copiar de .env.example) → compose usa defaults."
 else
@@ -118,6 +147,17 @@ else
     if grep -qE '^FILES_ADMIN_PASS=CambiarMeFiles' "$ROOT/.env"; then
         echo "    ATENCIÓN: FILES_ADMIN_PASS sigue con el valor de ejemplo del repo."
     fi
+    # Grafana declara GRAFANA_ADMIN_PASSWORD y GF_SECRET_KEY como obligatorias.
+    for v in GRAFANA_ADMIN_PASSWORD GF_SECRET_KEY; do
+        if ! grep -qE "^${v}=[^[:space:]#]+" "$ROOT/.env"; then
+            echo "    ERROR: falta $v en .env → docker compose aborta."
+            echo "      echo \"$v=\$(openssl rand -hex 32)\" >> $ROOT/.env"
+            exit 1
+        fi
+        if grep -qE "^${v}=Cambiar" "$ROOT/.env"; then
+            echo "    ATENCIÓN: $v sigue con el valor de ejemplo del repo."
+        fi
+    done
     # gid del grupo dueño de los shares: sin él, los archivos creados desde
     # la web quedan root:root y nadie puede escribirlos por SMB.
     if ! grep -qE '^FILES_GID=[0-9]+' "$ROOT/.env"; then

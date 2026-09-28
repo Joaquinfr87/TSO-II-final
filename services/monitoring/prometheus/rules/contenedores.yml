@@ -1,0 +1,28 @@
+# ===================================================================
+# contenedores.yml — Alertas de contenedores (cAdvisor)
+#   validar: promtool check rules services/monitoring/prometheus/rules/contenedores.yml
+#
+#   OJO: si el contenedor está detenido, cAdvisor deja de reportarlo y
+#   `container_last_seen` se congela → por eso se mide la antigüedad de
+#   la última señal, no la ausencia de la serie.
+# ===================================================================
+groups:
+  - name: contenedores
+    rules:
+      - alert: ContenedorCaido
+        expr: time() - container_last_seen{name=~"tso-.*"} > 60
+        for: 2m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "El contenedor {{ $labels.name }} dejó de reportar hace {{ $value | humanizeDuration }}"
+          detalle: "Revisá en dc1: docker ps -a --filter name={{ $labels.name }} y docker logs {{ $labels.name }}"
+
+      - alert: ContenedorComeCPU
+        expr: sum by (name) (rate(container_cpu_usage_seconds_total{name=~"tso-.*"}[5m])) > 1.5
+        for: 10m
+        labels:
+          severidad: media
+        annotations:
+          resumen: "{{ $labels.name }} usando {{ $value | humanize }} CPU (>1,5 cores)"
+          detalle: "CPU sostenida de un contenedor: revisá su dashboard/estado."

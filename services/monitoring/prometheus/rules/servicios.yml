@@ -1,0 +1,28 @@
+# ===================================================================
+# servicios.yml — Alertas de servicios (blackbox_exporter)
+#   probe_success == 0 → el servicio no respondió en su puerto/URL.
+#   validar: promtool check rules services/monitoring/prometheus/rules/servicios.yml
+# ===================================================================
+groups:
+  - name: servicios
+    rules:
+      - alert: ServicioInalcanzable
+        expr: probe_success == 0
+        for: 3m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "Sin respuesta: {{ $labels.instance }} ({{ $labels.job }})"
+          detalle: >-
+            La sonda falló 3 minutos seguidos. En dc1 revisá:
+            docker ps -a, docker logs del contenedor implicado y
+            sudo nft list ruleset si es un servicio nativo del DC.
+
+      - alert: ServicioLento
+        expr: probe_duration_seconds > 2
+        for: 10m
+        labels:
+          severidad: baja
+        annotations:
+          resumen: "{{ $labels.instance }} responde lento ({{ $value | humanizeDuration }})"
+          detalle: "Latencia sostenida >2s: revisá red y carga del host."
