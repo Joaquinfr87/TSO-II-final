@@ -1,0 +1,18 @@
+# Exclusiones de restic para server/backup.sh
+# Formato: rutas absolutas o patrones con ** (ver "Patterns" en la doc de restic).
+# OJO: esto se aplica TAMBIÉN a /srv/samba (datos de usuarios) — nada agresivo.
+
+# Artefactos de compilación del informe LaTeX
+docs/latex/**/*.aux
+docs/latex/**/*.bbl
+docs/latex/**/*.blg
+docs/latex/**/*.lof
+docs/latex/**/*.lot
+docs/latex/**/*.log
+docs/latex/**/*.out
+docs/latex/**/*.toc
+
+# Temporales de editor / sistema (no confundir con datos de usuarios)
+**/*~
+**/*.swp
+**/.DS_Store
