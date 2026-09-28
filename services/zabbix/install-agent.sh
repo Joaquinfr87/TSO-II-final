@@ -52,7 +52,10 @@ echo "==> ${PRETTY_NAME} (${CODENAME}) — rol: ${ROL}"
 # ── 1. Repo oficial (idempotente) ───────────────────────────────────
 if ! dpkg -s zabbix-release >/dev/null 2>&1; then
     echo "==> Repo oficial Zabbix ${ZBX_VER}"
-    DEB="zabbix-release_latest_${ZBX_VER}+${CODENAME}_all.deb"
+    # El nombre del .deb usa el número de versión, NO el codename:
+    #   bookworm -> debian12, trixie -> debian13
+    DIST="${ID}${VERSION_ID}"
+    DEB="zabbix-release_latest_${ZBX_VER}+${DIST}_all.deb"
     curl -fsSL -o "/tmp/${DEB}" \
         "https://repo.zabbix.com/zabbix/${ZBX_VER}/debian/pool/main/z/zabbix-release/${DEB}"
     dpkg -i "/tmp/${DEB}"
