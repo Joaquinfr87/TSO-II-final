@@ -1,0 +1,188 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: ba0d18c243094ed38b22b0d757f0af97
+      name: 'Templates/TSO'
+  templates:
+    - uuid: 9ccc2a54397849f4b583e5f3cdb65131
+      template: 'TSO - Docker agent2'
+      name: 'TSO - Docker agent2'
+      description: |
+        Contenedores Docker de un host (dc1 / zabbix) vía zabbix-agent2.
+
+        Usa docker.containers.discovery[true] (TODOS los contenedores, no solo
+        los que corren) para que un contenedor detenido siga descubierto y
+        dispare el trigger "Contenedor {#NAME} apagado".
+
+        Requiere zabbix-agent2 nativo con el plugin Docker habilitado
+        (services/zabbix/install-agent.sh).
+      groups:
+        - name: 'Templates/TSO'
+      items:
+        - uuid: 622ae1204bc84ab9ab3940e77c5b4e0e
+          name: 'Docker: info del daemon'
+          key: docker.info
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          tags:
+            - tag: component
+              value: containers
+        - uuid: f14228ec05044ddf93541504c5ffd12e
+          name: 'Docker: contenedores corriendo'
+          type: DEPENDENT
+          key: docker.containers.running
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ContainersRunning
+          master_item:
+            key: docker.info
+          tags:
+            - tag: component
+              value: containers
+        - uuid: 533bf3b602db4b45b8f905c221abac30
+          name: 'Docker: contenedores detenidos'
+          type: DEPENDENT
+          key: docker.containers.stopped
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ContainersStopped
+          master_item:
+            key: docker.info
+          tags:
+            - tag: component
+              value: containers
+        - uuid: b3473d95969246c882133cd9a9ec12c0
+          name: 'Docker: contenedores totales'
+          type: DEPENDENT
+          key: docker.containers.total
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Containers
+          master_item:
+            key: docker.info
+          tags:
+            - tag: component
+              value: containers
+      discovery_rules:
+        - uuid: 034eb2eaa61342d7bd734a12f0863967
+          name: 'Descubrimiento de contenedores'
+          key: 'docker.containers.discovery[true]'
+          delay: '1m'
+          lifetime: '7d'
+          description: |
+            true  = todos los contenedores (corriendo Y detenidos)
+            false = solo los que corren (no sirve para alertar apagados)
+          item_prototypes:
+            - uuid: 5137666d5b8942978ce797dbd71b3760
+              name: 'Contenedor {#NAME}: info'
+              key: 'docker.container_info["{#NAME}",full]'
+              history: '0'
+              value_type: CHAR
+              trends: '0'
+              tags:
+                - tag: component
+                  value: containers
+                - tag: container
+                  value: '{#NAME}'
+            - uuid: c9e92e44c42f444ba423cf5133f631ae
+              name: 'Contenedor {#NAME}: corriendo'
+              type: DEPENDENT
+              key: 'docker.container_info.state.running["{#NAME}"]'
+              delay: '0'
+              valuemap:
+                name: 'TSO estado docker'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.State.Running
+                - type: BOOL_TO_DECIMAL
+                  parameters:
+                    - ''
+              master_item:
+                key: 'docker.container_info["{#NAME}",full]'
+              tags:
+                - tag: component
+                  value: containers
+                - tag: container
+                  value: '{#NAME}'
+            - uuid: be384ea185b0491682107579059f23b2
+              name: 'Contenedor {#NAME}: estado'
+              type: DEPENDENT
+              key: 'docker.container_info.state.status["{#NAME}"]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.State.Status
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'docker.container_info["{#NAME}",full]'
+              tags:
+                - tag: component
+                  value: containers
+                - tag: container
+                  value: '{#NAME}'
+            - uuid: d76c62dfc9c7413f812ebba86917d8f5
+              name: 'Contenedor {#NAME}: código de salida'
+              type: DEPENDENT
+              key: 'docker.container_info.state.exitcode["{#NAME}"]'
+              delay: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.State.ExitCode
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'docker.container_info["{#NAME}",full]'
+              tags:
+                - tag: component
+                  value: containers
+                - tag: container
+                  value: '{#NAME}'
+          trigger_prototypes:
+            - uuid: 1096d2741748475c8258801fd0c0349c
+              expression: 'last(/TSO - Docker agent2/docker.container_info.state.running["{#NAME}"])=0 and last(/TSO - Docker agent2/docker.container_info.state.status["{#NAME}"])<>"restarting"'
+              name: 'Contenedor {#NAME} apagado'
+              priority: HIGH
+              description: 'El contenedor dejó de correr (no está en estado restarting).'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: containers
+                - tag: notify
+                  value: admins
+            - uuid: 6484fedad3be48828b26ca17c042bf6e
+              expression: 'last(/TSO - Docker agent2/docker.container_info.state.running["{#NAME}"])=0 and last(/TSO - Docker agent2/docker.container_info.state.exitcode["{#NAME}"])>0'
+              name: 'Contenedor {#NAME} terminó con error'
+              priority: AVERAGE
+              opdata: 'Exit code: {ITEM.LASTVALUE1}'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: containers
+                - tag: notify
+                  value: admins
+      valuemaps:
+        - uuid: 4f258c8e26a342159dd3d1e06adc5e09
+          name: 'TSO estado docker'
+          mappings:
+            - value: '0'
+              newvalue: Detenido
+            - value: '1'
+              newvalue: Corriendo

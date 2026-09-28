@@ -1,0 +1,222 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: ba0d18c243094ed38b22b0d757f0af97
+      name: 'Templates/TSO'
+  templates:
+    - uuid: 8a5b503995e04bb2b5ee3f174682d121
+      template: 'TSO - Servicio Zabbix'
+      name: 'TSO - Servicio Zabbix'
+      description: |
+        Monitorea el propio servicio de monitoreo que corre en 192.168.0.3
+        (compose services/zabbix): contenedores postgres / zabbix-server /
+        zabbix-web + el puerto 10051.
+
+        "El servicio de Zabbix se (re)inició" usa el StartedAt del contenedor
+        zabbix-server: es la ÚNICA forma de avisar de un reinicio, porque
+        mientras el server está caído no puede evaluar nada (si se chequeara
+        el puerto 10051 desde el propio server nunca se vería el problema).
+
+        Requiere zabbix-agent2 nativo en .3 con el plugin Docker
+        (services/zabbix/install-agent.sh).
+      groups:
+        - name: 'Templates/TSO'
+      items:
+        - uuid: 86d4c4bb502e4b8894a8e30c45534d89
+          name: 'Servicio: Zabbix server (10051)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,10051]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio zabbix'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: aac4cc180f53462f8a8f1ba8b4c5f0da
+              expression: 'max(/TSO - Servicio Zabbix/net.tcp.service[tcp,,10051],#3)=0'
+              name: 'Servicio de Zabbix (10051) caído'
+              priority: DISASTER
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: d03f72bb49fd401ab7536fd6257af2b4
+          name: 'Contenedor zabbix-pgsql: info'
+          key: 'docker.container_info["zabbix-pgsql",full]'
+          delay: '1m'
+          history: '0'
+          value_type: CHAR
+          trends: '0'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-pgsql
+        - uuid: 640defb902bd45e699600cb212e5e90a
+          name: 'Contenedor zabbix-pgsql: corriendo'
+          type: DEPENDENT
+          key: 'docker.container_info.state.running["zabbix-pgsql"]'
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.State.Running
+            - type: BOOL_TO_DECIMAL
+              parameters:
+                - ''
+          master_item:
+            key: 'docker.container_info["zabbix-pgsql",full]'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-pgsql
+          triggers:
+            - uuid: f536c8f4a3244110a87ff102b8238ab2
+              expression: 'last(/TSO - Servicio Zabbix/docker.container_info.state.running["zabbix-pgsql"])=0'
+              name: 'Contenedor zabbix-pgsql apagado'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: containers
+                - tag: notify
+                  value: admins
+        - uuid: cfb9428d424648c9a991c1db3af65131
+          name: 'Contenedor zabbix-web: info'
+          key: 'docker.container_info["zabbix-web",full]'
+          delay: '1m'
+          history: '0'
+          value_type: CHAR
+          trends: '0'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-web
+        - uuid: e1a92895e6294bfabdacc1cae779daeb
+          name: 'Contenedor zabbix-web: corriendo'
+          type: DEPENDENT
+          key: 'docker.container_info.state.running["zabbix-web"]'
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.State.Running
+            - type: BOOL_TO_DECIMAL
+              parameters:
+                - ''
+          master_item:
+            key: 'docker.container_info["zabbix-web",full]'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-web
+          triggers:
+            - uuid: 410f45aa1c1c4a2991e104052c43498e
+              expression: 'last(/TSO - Servicio Zabbix/docker.container_info.state.running["zabbix-web"])=0'
+              name: 'Contenedor zabbix-web apagado'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: containers
+                - tag: notify
+                  value: admins
+        - uuid: 2d98c575328f4503ae57b030dbf64893
+          name: 'Contenedor zabbix-server: info'
+          key: 'docker.container_info["zabbix-server",full]'
+          delay: '1m'
+          history: '0'
+          value_type: CHAR
+          trends: '0'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-server
+        - uuid: 549244c85126429ebc0a6766750c649d
+          name: 'Contenedor zabbix-server: corriendo'
+          type: DEPENDENT
+          key: 'docker.container_info.state.running["zabbix-server"]'
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.State.Running
+            - type: BOOL_TO_DECIMAL
+              parameters:
+                - ''
+          master_item:
+            key: 'docker.container_info["zabbix-server",full]'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-server
+          triggers:
+            - uuid: 94853c834a9b4b63b129854c3af958a2
+              expression: 'last(/TSO - Servicio Zabbix/docker.container_info.state.running["zabbix-server"])=0'
+              name: 'Contenedor zabbix-server apagado'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: containers
+                - tag: notify
+                  value: admins
+        - uuid: 792874be495c46878fc4ea2eec4370ea
+          name: 'Contenedor zabbix-server: inicio'
+          type: DEPENDENT
+          key: 'docker.container_info.started["zabbix-server"]'
+          delay: '0'
+          value_type: FLOAT
+          units: unixtime
+          description: |
+            Timestamp (unixtime) de State.StartedAt del contenedor zabbix-server.
+            Cambia CADA VEZ que el contenedor arranca -> sirve para avisar que
+            "el servicio de Zabbix se levanto".
+            A proposito NO lleva DISCARD_UNCHANGED_HEARTBEAT: sin eso el trigger
+            de change() tardaria hasta 1d en volver a OK.
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var input = JSON.parse(value);
+                    return Math.floor(Date.parse(input.State.StartedAt) / 1000) || -1;
+          master_item:
+            key: 'docker.container_info["zabbix-server",full]'
+          tags:
+            - tag: component
+              value: containers
+            - tag: container
+              value: zabbix-server
+          triggers:
+            - uuid: 92d033815f11493fb1c9a82b29bc6d8d
+              expression: 'change(/TSO - Servicio Zabbix/docker.container_info.started["zabbix-server"])<>0'
+              name: 'Servicio de Zabbix se (re)inició'
+              priority: INFO
+              description: 'El contenedor zabbix-server arrancó de nuevo (StartedAt cambió).'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: zabbix
+                - tag: notify
+                  value: zabbix-arrancada
+      valuemaps:
+        - uuid: 2324f770f47243a5bdc973ba5869ebab
+          name: 'TSO servicio zabbix'
+          mappings:
+            - value: '0'
+              newvalue: Caído
+            - value: '1'
+              newvalue: Activo

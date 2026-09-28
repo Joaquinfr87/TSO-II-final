@@ -1,0 +1,204 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: ba0d18c243094ed38b22b0d757f0af97
+      name: 'Templates/TSO'
+  templates:
+    - uuid: 730035695a5b47aeb02abe6220827ace
+      template: 'TSO - Servicios TCP sin agente'
+      name: 'TSO - Servicios TCP sin agente'
+      description: |
+        Chequeo de puertos TCP de los contenedores publicados en dc1 usando
+        "Simple checks" (type SIMPLE): lo ejecuta el Zabbix server, NO necesita
+        agente en el host. Sirve para avisar de inmediato si un servicio deja
+        de responder, aunque todavía no esté instalado zabbix-agent2.
+
+        net.tcp.service[tcp,,<puerto>] usa la IP de la interfaz del host.
+        Se necesitan 3 fallos seguidos (delay 30s) antes de alertar.
+      groups:
+        - name: 'Templates/TSO'
+      items:
+        - uuid: 58a73196896d4b589b6ba62f78dbdf6d
+          name: 'Servicio: web nginx (80)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,80]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 2f0ff86cf27d46b2a74fa0ee233e09e0
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,80],#3)=0'
+              name: 'Servicio: web nginx (80) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: 74a65d6c36b8419abb5878d9bf6fb40c
+          name: 'Servicio: web nginx TLS (443)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,443]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 6d92dea8679b4a878c0d97be095b1978
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,443],#3)=0'
+              name: 'Servicio: web nginx TLS (443) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: aee6f937002f44e682bae7977bd72cfa
+          name: 'Servicio: SMTP Postfix (25)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,25]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 7775cb5a5c6146b0b88ab2ca326b3f61
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,25],#3)=0'
+              name: 'Servicio: SMTP Postfix (25) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: 0b6a828dc65c400bb4e2cfab7cbc0ee8
+          name: 'Servicio: IMAPS Dovecot (993)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,993]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 294d2eca78d14a08a52a7396cc3f848e
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,993],#3)=0'
+              name: 'Servicio: IMAPS Dovecot (993) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: 86f8ce7750bd44589038d99d7d5ee103
+          name: 'Servicio: PostgreSQL (5432)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,5432]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 9e9406907ec54828a86c6e8e0fdf1fe6
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,5432],#3)=0'
+              name: 'Servicio: PostgreSQL (5432) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: 103db394f04d48318bcbb0d8187ea5f2
+          name: 'Servicio: CUPS (1631)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,1631]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 60db4949e333454686a8379338fddcd3
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,1631],#3)=0'
+              name: 'Servicio: CUPS (1631) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: 3c3ab976523b4e18bb080f9da3760434
+          name: 'Servicio: Portainer (9443)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,9443]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: 17557170145747968da337f54f497f1c
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,9443],#3)=0'
+              name: 'Servicio: Portainer (9443) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+        - uuid: 9d3ba7ca0ec24ee09116820b98c0e83d
+          name: 'Servicio: Portainer agent (8000)'
+          type: SIMPLE
+          key: 'net.tcp.service[tcp,,8000]'
+          delay: '30s'
+          valuemap:
+            name: 'TSO servicio TCP'
+          tags:
+            - tag: component
+              value: services
+          triggers:
+            - uuid: d17b1a53904146a2b8495a6589c8269c
+              expression: 'max(/TSO - Servicios TCP sin agente/net.tcp.service[tcp,,8000],#3)=0'
+              name: 'Servicio: Portainer agent (8000) caído'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: component
+                  value: services
+                - tag: notify
+                  value: admins
+      valuemaps:
+        - uuid: cfcae5d829a34d459fed396837b2c49f
+          name: 'TSO servicio TCP'
+          mappings:
+            - value: '0'
+              newvalue: Caído
+            - value: '1'
+              newvalue: Activo
