@@ -19,9 +19,9 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 
 - **UNA sola red plana:** `192.168.0.0/24`. La antigua `192.168.20.0/24` del
   lab quedó **descartada** (no hay control sobre esa red).
-- **Router:** TP-Link **TL-WR850N** (firmware 3.16.0), IP `192.168.0.1`,
-  maneja la red y es la puerta de enlace. Su DHCP **se desactiva** cuando Kea
-  tome el servicio (evita DHCP doble).
+- **Router:** TP-Link **TL-WR850N v3** (Hardware Ver. `00000002`, firmware
+  3.16.0), IP `192.168.0.1`, maneja la red y es la puerta de enlace. Su DHCP
+  **se desactiva** cuando Kea tome el servicio (evita DHCP doble).
 - **Server / DC:** ip fija **`192.168.0.2`** (conectado **por cable** al
   router), hostname `dc1` → `dc1.sudoers.lan`. La IP `192.168.0.10` del
   diseño original quedó descartada.
@@ -32,14 +32,32 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 - **Reservas por MAC:** se configuran en `.env` → `DHCP_RESERVATIONS`
   (formato `"MAC=IP=hostname;…"`), que el entrypoint de Kea convierte a
   reservas del subnet. Los PCs de los admins ocupan `.50–.52` (coincide con
-  `admin_ips` del firewall).
+  `admin_ips` del firewall); el server Zabbix `zabbix` ocupa `.3`
+  (infraestructura).
 - **AD:** dominio/realm `SUDOERS.LAN`, NetBIOS `SUDOERS`, Kerberos realm `SUDOERS.LAN`.
+
+## Máquinas
+
+- **dc1** = `192.168.0.2` — el host físico principal (DC Samba + Docker +
+  resto de servicios). Es la máquina "siempre encendida".
+- **zabbix** = `192.168.0.3` — **server Debian FÍSICO dedicado** (Debian 13)
+  que corre **solo Zabbix**: server + web + Postgres vía `services/zabbix`
+  (compose propio). **No es una VM** (se descartó la idea de la
+  VM/laptop). Alcanzable de forma directa por toda la LAN (sin NAT). Web
+  publicada directamente como `zabbix.sudoers.lan` → `192.168.0.3:80`
+  (login `Admin/zabbix` — **cambiar**). El server consulta agents en
+  **modo pasivo** (`10050`, origen `192.168.0.3`). Reserva por MAC en
+  `.1–.49` (infraestructura); hostname `zabbix`.
+- **Equipos de admins:** `pc-joaquin .50`, `pc-david .51`, `pc-nicolas .52`
+  (fijos, `.50–.99`); usuarios dinámicos en `.100–.199`.
 
 ## Usuarios (AD)
 
 - **Admins:** `joaquin`, `nicolas`, `david` (grupo `admins` + `sistemas`).
 - **Usuarios de prueba:** `grupo2`, `grupo3`, …, `grupo9` (grupo `oficina`).
   Se crean con `dc/add-users-groups.sh`, idempotente.
+- **`tsoII`:** usuario nuevo para pruebas de logon script en Windows — cambia
+  el wallpaper vía `scriptPath` de AD (script `tsoII-wallpaper.cmd` en netlogon).
 
 ## Reglas técnicas que NO se negocian
 
@@ -62,14 +80,15 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 | NTP | chrony | NATIVO |
 | Firewall / SSH | nftables / sshd endurecido | NATIVO (`server/`) |
 | DHCP | Kea | CONTENEDOR (`services/dhcp`, host network) |
-| Correo | Postfix + Dovecot (auth LDAP AD) | CONTENEDOR (`services/mail`) |
-| Webmail | Roundcube | CONTENEDOR |
-| Archivos | Shares SMB del DC (perms por grupos AD) | NATIVO (smb.conf del DC) |
+| Correo | Postfix + Dovecot (auth local; LDAP AD pendiente) | CONTENEDOR (`services/mail`) |
+| Webmail | Roundcube | CONTENEDOR (`services/webmail`) |
+| Archivos | Shares SMB del DC (perms por grupos AD) + gestor web | NATIVO (`smb.conf`) + CONTENEDOR (`services/filemanager`) |
 | Web/Proxy inverso | Nginx `*.sudoers.lan` + TLS | CONTENEDOR (`services/web`) |
 | Base de datos | PostgreSQL (+MariaDB si hace falta) | CONTENEDOR (`services/database`) |
 | Impresión | CUPS | CONTENEDOR (`services/print`) |
 | Gestión Docker | Portainer | CONTENEDOR |
-| Monitoreo / Backup | Netdata-Grafana / restic-borg | CONTENEDOR / NATIVO cron |
+| Monitoreo | Zabbix (server + web; agents en hosts) | Server Debian físico `zabbix` (`192.168.0.3`) — `services/zabbix` (compose propio) |
+| Backup | restic/borg | NATIVO cron |
 
 ## Estructura del repo
 
@@ -82,8 +101,10 @@ TSO-II-final/
 ├── dc/                  ← Samba AD DC nativo (provision.sh, shares.conf, krb5, scripts)
 ├── server/              ← host: nftables, sshd, chrony, deploy
 ├── clients/             ← guías para unir clientes Linux/Windows al dominio (pendiente)
-├── services/            ← por servicio contenedor (dhcp, web, mail, db, print; webmail/monitoring/apps pendientes)
+├── services/            ← por servicio contenedor (dhcp, web, mail, webmail, db, print; monitoring/apps pendientes)
 └── docs/                ← TODA la documentación (arquitectura, futuro: red, seguridad, backup…)
+
+Máquinas: dc1 (host físico, 192.168.0.2) + zabbix (server Debian físico dedicado, 192.168.0.3).
 ```
 
 ## Flujo de trabajo habitual
@@ -97,6 +118,26 @@ docker compose up -d <servicio>         # servicio puntual
 - Documentación nueva va SIEMPRE en `docs/` (no inflar el `README.md`).
 - Un servicio nuevo = carpeta `services/<nombre>` + bloque en el compose.
 - En el server físico: `git pull && sudo bash server/deploy.sh` (no tocar a mano).
+
+## Pendientes (próximos pasos)
+
+1. **Backups (restic u otro):** no existe nada todavía (solo el hueco en la
+   tabla de servicios). Definir: qué se copia (shares `/srv/samba`, `.env`,
+   configs de `dc/` y `server/`, volumen Postgres de Zabbix en `.3`), destino
+   (disco externo/NAS), retención, y **probar el restore**. Fue la decisión
+   "cómo" la que falta; `restic` con cron nativo es el candidato.
+2. **Monitoreo → alertas por mail:** Zabbix ya corre y recolecta
+   (hosts, templates propios y agents), pero **los triggers no mandan
+   correos**: las acciones existen (`TSO - Servicio o contenedor caído
+   (admins)` y `TSO - Servicio de Zabbix (re)iniciado (todos los usuarios)`)
+   y los eventos se generan, pero `alert.get` queda en 0. Cerrar ese debug
+   (condición tag/valor de la acción, `mediatypeid`, prueba E2E hasta ver el
+   mail saliendo por Postfix de dc1) y sumar agents a los clientes.
+3. **WiFi "sudoers" con usuario y contraseña:** falta diseñar/implementar la
+   conexión a la red inalámbrica autenticando con usuario y contraseña (si
+   es contra AD, evaluar 802.1X/WPA2-Enterprise + FreeRADIUS; ojo: el
+   router actual TL-WR850N v3 no soporta 802.1X, quizás haga falta un AP
+   que sí o WPA2-PSK por grupo).
 
 ## Documentación detallada
 
