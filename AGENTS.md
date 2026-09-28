@@ -40,12 +40,13 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 
 - **dc1** = `192.168.0.2` — el host físico principal (DC Samba + Docker +
   resto de servicios). Es la máquina "siempre encendida".
-- **zabbix** = `192.168.0.3` — **server Debian FÍSICO dedicado**
-  (solo Zabbix server + web UI). **No es una VM** (se descartó la idea de la
+- **zabbix** = `192.168.0.3` — **server Debian FÍSICO dedicado** (Debian 13)
+  que corre **solo Zabbix**: server + web + Postgres vía `services/zabbix`
+  (compose propio). **No es una VM** (se descartó la idea de la
   VM/laptop). Alcanzable de forma directa por toda la LAN (sin NAT). Web
-  publicada directamente como `zabbix.sudoers.lan` → `192.168.0.3:80`.
-  El server consulta agents en **modo pasivo** (abrir
-  `10050` en los clientes con origen `192.168.0.3`). Reserva por MAC en
+  publicada directamente como `zabbix.sudoers.lan` → `192.168.0.3:80`
+  (login `Admin/zabbix` — **cambiar**). El server consulta agents en
+  **modo pasivo** (`10050`, origen `192.168.0.3`). Reserva por MAC en
   `.1–.49` (infraestructura); hostname `zabbix`.
 - **Equipos de admins:** `pc-joaquin .50`, `pc-david .51`, `pc-nicolas .52`
   (fijos, `.50–.99`); usuarios dinámicos en `.100–.199`.
@@ -117,6 +118,26 @@ docker compose up -d <servicio>         # servicio puntual
 - Documentación nueva va SIEMPRE en `docs/` (no inflar el `README.md`).
 - Un servicio nuevo = carpeta `services/<nombre>` + bloque en el compose.
 - En el server físico: `git pull && sudo bash server/deploy.sh` (no tocar a mano).
+
+## Pendientes (próximos pasos)
+
+1. **Backups (restic u otro):** no existe nada todavía (solo el hueco en la
+   tabla de servicios). Definir: qué se copia (shares `/srv/samba`, `.env`,
+   configs de `dc/` y `server/`, volumen Postgres de Zabbix en `.3`), destino
+   (disco externo/NAS), retención, y **probar el restore**. Fue la decisión
+   "cómo" la que falta; `restic` con cron nativo es el candidato.
+2. **Monitoreo → alertas por mail:** Zabbix ya corre y recolecta
+   (hosts, templates propios y agents), pero **los triggers no mandan
+   correos**: las acciones existen (`TSO - Servicio o contenedor caído
+   (admins)` y `TSO - Servicio de Zabbix (re)iniciado (todos los usuarios)`)
+   y los eventos se generan, pero `alert.get` queda en 0. Cerrar ese debug
+   (condición tag/valor de la acción, `mediatypeid`, prueba E2E hasta ver el
+   mail saliendo por Postfix de dc1) y sumar agents a los clientes.
+3. **WiFi "sudoers" con usuario y contraseña:** falta diseñar/implementar la
+   conexión a la red inalámbrica autenticando con usuario y contraseña (si
+   es contra AD, evaluar 802.1X/WPA2-Enterprise + FreeRADIUS; ojo: el
+   router actual TL-WR850N v3 no soporta 802.1X, quizás haga falta un AP
+   que sí o WPA2-PSK por grupo).
 
 ## Documentación detallada
 
