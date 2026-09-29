@@ -1,0 +1,27 @@
+% ============================================================================
+%  2. OBJETIVOS DEL PROYECTO
+% ============================================================================
+
+\section{Objetivos del proyecto}
+
+\subsection{Objetivo general}
+
+Diseñar e implementar una arquitectura empresarial GNU/Linux funcional y
+segura, integrando servicios de directorio (Active Directory), DHCP, DNS,
+Web, correo electrónico y archivos, con medidas de securización aplicadas en
+cada uno de los servicios desplegados \cite{nemeth2017}.
+
+\subsection{Objetivos específicos}
+
+\begin{enumerate}
+  \item Diseñar una arquitectura empresarial funcional y segura.
+  \item Implementar un servidor de correo electrónico (Postfix/Dovecot) y un
+        servidor de archivos multi-protocolo (Samba/NFS/HTTP) con resolución
+        de nombres asociada \cite{postel1982}.
+  \item Configurar un servidor DHCP (Kea) y un servidor Web con proxy
+        inverso y soporte TLS \cite{rfc2131, keaDocs}.
+  \item Desplegar un controlador de dominio Samba 4 Active Directory con
+        DNS, DHCP y autenticación Kerberos \cite{sambateam2024, rfc4120}.
+  \item Validar el funcionamiento integral de la infraestructura mediante
+        pruebas funcionales desde los clientes de la red.
+\end{enumerate}

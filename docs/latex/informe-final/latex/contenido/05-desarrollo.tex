@@ -1,0 +1,1098 @@
+% ============================================================================
+%  4. DESARROLLO T\'ECNICO DEL PROYECTO
+%  ----------------------------------------------------------------------------
+%  Integraci\'on del contenido de las actividades a4 (correo y archivos),
+%  a5 (DHCP y Web) y a7 (Samba 4 AD DC).
+% ============================================================================
+
+\section{Desarrollo t\'ecnico del proyecto}
+
+Este cap\'itulo documenta la implementaci\'on de los servicios de
+infraestructura del banco Sudoers. El desarrollo se organiz\'o en tres
+bloques correspondientes a las actividades del curso: primero el servicio de
+correo electr\'onico y el de archivos multi-protocolo, luego el servidor DHCP
+y el servidor Web con proxy inverso, y finalmente el despliegue del
+controlador de dominio Samba 4 Active Directory que integra la identidad de
+toda la red.
+
+Cada bloque describe desde la instalaci\'on de los paquetes necesarios hasta
+las pruebas funcionales ejecutadas desde los clientes de la LAN. Las
+direcciones IP citadas corresponden al plan de direccionamiento final
+documentado en el cap\'itulo de arquitectura: el host \texttt{dc1} opera en
+\texttt{192.168.0.2}, el servidor de monitoreo \texttt{zabbix} en
+\texttt{192.168.0.3} y el router en \texttt{192.168.0.1}.
+
+% ============================================================================
+%  BLOQUE 1: SERVIDOR DE CORREO ELECTR\'ONICO
+% ============================================================================
+\section{Servidor de correo electr\'onico}
+
+El servicio de correo se implement\'o sobre Debian 12 mediante dos
+componentes instalados de forma nativa: Postfix como agente de
+transferencia de correo (\textsc{mta}) y Dovecot como agente de acceso a
+buzones (\textsc{mda}). La protecci\'on de las conexiones se realiza con
+\textsc{starttls} y certificados auto-firmados \cite{postel1982}.
+
+\subsection{Arquitectura del servicio}
+
+Postfix gestiona el env\'io y la recepci\'on mediante SMTP, habilitando el
+puerto 25 para la transferencia entre servidores y el 587 para el env\'io
+autenticado desde clientes. Dovecot expone los buzones mediante IMAP
+(puerto 143) y POP3 (puerto 110), y valida las credenciales de los usuarios
+a trav\'es del subsistema SASL.
+
+La autenticaci\'on se delega de Postfix a Dovecot mediante un socket Unix
+(\texttt{/var/run/dovecot/private/auth}). El cliente remite sus
+credenciales en el puerto 587, Postfix consulta al socket de Dovecot y s\'olo
+tras la validaci\'on exitosa acepta el mensaje. La figura
+\ref{fig:arquitectura-correo} muestra el esquema del servicio.
+
+\figuraAPA{fig:arquitectura-correo}{Arquitectura del servicio de correo: Postfix, Dovecot y DNS}{%
+  \begin{tikzpicture}[
+      node distance=1.2cm and 1.8cm,
+      servicio/.style={draw, rounded corners, minimum width=2.6cm,
+                       minimum height=0.9cm, align=center, font=\small},
+      cliente/.style={draw, circle, minimum size=1cm, font=\small},
+      linea/.style={-Stealth, thick}
+    ]
+    \node[servicio] (postfix) {Postfix\\{\footnotesize SMTP}};
+    \node[servicio, right=of postfix] (dovecot) {Dovecot\\{\footnotesize IMAP/POP3}};
+    \node[cliente, left=of postfix] (c1) {C1};
+    \node[cliente, below=of c1] (c2) {C2};
+    \node[servicio, below=of postfix, yshift=-0.4cm] (dns) {BIND9\\{\footnotesize DNS}};
+    \draw[linea] (c1.east) -- node[above,font=\scriptsize]{587} (postfix.west);
+    \draw[linea] (c2.east) -| (postfix.west);
+    \draw[linea] (postfix.east) -- node[above,font=\scriptsize]{SASL} (dovecot.west);
+    \draw[linea, dashed] (postfix.south) -- (dns.north);
+  \end{tikzpicture}%
+}{Elaboraci\'on propia.}
+
+\subsection{Instalaci\'on de paquetes}
+
+\begin{lstlisting}[style=terminal]
+$ apt update
+$ apt install -y postfix dovecot-core dovecot-lmtpd \
+  libsasl2-modules openssl
+\end{lstlisting}
+
+El paquete \texttt{postfix} aporta el daemon \texttt{master} y el gestor
+\texttt{postconf}; \texttt{dovecot-core} y \texttt{dovecot-lmtpd} instalan el
+servidor de buzones con soporte \textsc{lmtp}; \texttt{libsasl2-modules}
+habilita los mecanismos de autenticaci\'on; y \texttt{openssl} se emplea
+para emitir los certificados \textsc{tls} \cite{opensslDocs}.
+
+\subsection{Configuraci\'on del servidor DNS}
+
+Antes de configurar el correo se estableci\'o la resoluci\'on de nombres del
+dominio \texttt{sudoers.lan}, con un registro \textsc{mx} que apunta al
+servidor de correo y su registro \textsc{a} correspondiente. La
+verificaci\'on se realiz\'o con la utilidad \texttt{dig}:
+
+\begin{lstlisting}[style=terminal]
+$ dig +short MX sudoers.lan
+10 mail.sudoers.lan.
+
+$ dig +short mail.sudoers.lan
+192.168.0.2
+\end{lstlisting}
+
+\capturaAPA{fig:dig-mx}{Verificaci\'on del registro \textsc{mx} del dominio \texttt{sudoers.lan} con \texttt{dig}}{captura-dig-mx.png}{Captura de pantalla de la salida de \texttt{dig +short MX sudoers.lan} y \texttt{dig +short mail.sudoers.lan} en la terminal, mostrando el registro MX y la direcci\'on IP del servidor de correo.}
+
+\subsection{Configuraci\'on del servidor SMTP}
+
+La configuraci\'on de Postfix reside en \texttt{/etc/postfix/main.cf}. Los
+par\'ametros relevantes se resumen en la tabla \ref{tab:parametros-postfix}.
+
+\begin{table}[H]
+\centering
+\caption{Par\'ametros principales de Postfix}
+\label{tab:parametros-postfix}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{5.8cm}p{8cm}@{}}
+    \toprule
+    \textbf{Par\'ametro} & \textbf{Valor} \\
+    \midrule
+    \texttt{myhostname} & \texttt{mail.sudoers.lan} \\
+    \texttt{mydomain} & \texttt{sudoers.lan} \\
+    \texttt{mynetworks} & \texttt{127.0.0.0/8, 10.0.0.0/8,}\newline
+                          \texttt{172.16.0.0/12, 192.168.0.0/16} \\
+    \texttt{home\_mailbox} & \texttt{Maildir/} \\
+    \texttt{smtpd\_sasl\_type} & \texttt{dovecot} \\
+    \texttt{smtpd\_sasl\_path} & \texttt{private/auth} \\
+    \texttt{smtpd\_sasl\_auth\_enable} & \texttt{yes} \\
+    \texttt{smtpd\_sasl\_security\_options} & \texttt{noanonymous} \\
+    \texttt{smtpd\_use\_tls} & \texttt{yes} \\
+    \texttt{smtpd\_tls\_security\_level} & \texttt{may} \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+El almacenamiento en formato \texttt{Maildir/} garantiza que cada mensaje
+se guarde como un archivo independiente, lo que evita bloqueos al escribir
+y simplifica el respaldo. La opci\'on \texttt{noanonymous} impide el env\'io
+sin autenticaci\'on.
+
+\capturaAPA{fig:postconf}{Par\'ametros efectivos de Postfix con \texttt{postconf -n}}{captura-postconf.png}{Captura de pantalla de la terminal ejecutando \texttt{postconf -n}, mostrando la configuraci\'on activa del servidor de correo, incluidos los par\'ametros de identidad, redes y SASL.}
+
+\subsection{Configuraci\'on del servidor IMAP/POP3}
+
+Dovecot se configura mediante los archivos del directorio
+\texttt{/etc/dovecot/conf.d/}. La configuraci\'on resultante se verificó con
+el comando \texttt{doveconf -n}.
+
+\capturaAPA{fig:doveconf}{Verificaci\'on de la configuraci\'on de Dovecot con \texttt{doveconf -n}}{captura-doveconf.png}{Captura de pantalla de la terminal ejecutando \texttt{doveconf -n}, con los par\'ametros activos de Dovecot referidos a protocolos, ubicaci\'on del buz\'on y cifrado.}
+
+\subsection{Pruebas de conectividad y de env\'io}
+
+Desde el equipo cliente se verific\'o la apertura de los puertos del
+servicio de correo:
+
+\begin{lstlisting}[style=terminal]
+$ for p in 25 110 143 587 993 995; do
+    timeout 3 bash -c "echo > /dev/tcp/192.168.0.2/$p" \
+      && echo "puerto $p: ABIERTO"
+  done
+puerto 25: ABIERTO
+puerto 587: ABIERTO
+\end{lstlisting}
+
+\capturaAPA{fig:puertos-abiertos}{Comprobaci\'on de conectividad a los puertos del servidor de correo}{captura-puertos.png}{Captura de pantalla mostrando la salida del bucle que verifica los puertos 25, 110, 143, 587, 993 y 995 desde la m\'aquina cliente.}
+
+La negociaci\'on \textsc{starttls} se comprob\'o con \texttt{openssl},
+que muestra el sujeto del certificado y el c\'odigo de verificaci\'on 18
+correspondiente a un certificado auto-firmado:
+
+\begin{lstlisting}[style=terminal]
+$ openssl s_client -connect 192.168.0.2:587 -starttls smtp
+subject=CN=mail.sudoers.lan, O=TSO-II, C=AR
+Verify return code: 18 (self-signed certificate)
+\end{lstlisting}
+
+\capturaAPA{fig:starttls}{Negociaci\'on \textsc{starttls} con el servidor SMTP}{captura-starttls.png}{Captura de pantalla de \texttt{openssl s\_client} mostrando el sujeto del certificado y el c\'odigo de verificaci\'on 18, propio de un certificado auto-firmado.}
+
+El env\'io autenticado se valid\'o con \texttt{swaks}, que completa el
+intercambio \textsc{smtp} y obtiene la respuesta \texttt{250} de aceptaci\'on
+del mensaje:
+
+\begin{lstlisting}[style=terminal]
+$ swaks --to joaquin@sudoers.lan \
+    --from nicolas@sudoers.lan \
+    --server 192.168.0.2 --port 587 \
+    --auth LOGIN --auth-user nicolas \
+    --header "Subject: Prueba" \
+    --body "Hola Joaquin, esto es una prueba."
+\end{lstlisting}
+
+\capturaAPA{fig:swaks}{Env\'io de correo autenticado con \texttt{swaks}}{captura-swaks.png}{Captura de pantalla de \texttt{swaks} mostrando el intercambio SMTP, la autenticaci\'on exitosa y el c\'odigo 250 de aceptaci\'on del mensaje.}
+
+La recepci\'on se confirm\'o inspeccionando el buz\'on del destinatario,
+donde el mensaje aparece como un archivo individual dentro del directorio
+\texttt{new/} del \texttt{Maildir}:
+
+\begin{lstlisting}[style=terminal]
+$ ls /home/joaquin/Maildir/new/
+1627...joaquin@sudoers.lan
+\end{lstlisting}
+
+\capturaAPA{fig:maildir-receptor}{Buz\'on \texttt{Maildir} del destinatario con el mensaje recibido}{captura-maildir.png}{Captura de pantalla listando el contenido de \texttt{/home/joaquin/Maildir/new/}, donde aparece el archivo del correo recibido con el nombre generado por Postfix.}
+
+\subsection{Acceso desde clientes}
+
+El acceso desde un cliente gr\'afico como Thunderbird se realiz\'o con la
+configuraci\'on que se detalla en la tabla \ref{tab:config-thunderbird}.
+
+\begin{table}[H]
+\centering
+\caption{Configuraci\'on del cliente de correo Thunderbird}
+\label{tab:config-thunderbird}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{5.4cm}p{8.4cm}@{}}
+    \toprule
+    \textbf{Par\'ametro} & \textbf{Valor} \\
+    \midrule
+    Servidor de entrada (IMAP) & \texttt{mail.sudoers.lan} \\
+    Puerto de entrada & \texttt{143} \\
+    Seguridad de entrada & \textsc{starttls} \\
+    Servidor de salida (SMTP) & \texttt{mail.sudoers.lan} \\
+    Puerto de salida & \texttt{587} \\
+    Seguridad de salida & \textsc{starttls} \\
+    Autenticaci\'on & Contrase\~na normal \\
+    Usuario & \texttt{joaquin} \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+\capturaAPA{fig:thunderbird}{Cliente Thunderbird conectado al servidor IMAP con los mensajes recibidos}{captura-thunderbird.png}{Captura de pantalla del cliente Thunderbird mostrando la cuenta \texttt{joaquin@sudoers.lan} conectada y la bandeja de entrada con el mensaje de prueba.}
+
+% ============================================================================
+%  BLOQUE 2: SERVIDOR DE ARCHIVOS MULTI-PROTOCOLO
+% ============================================================================
+\section{Servidor de archivos multi-protocolo}
+
+El servicio de archivos integra tres protocolos --\textsc{smb/cifs} con
+Samba, \textsc{nfs} con el m\'odulo del n\'ucleo y \textsc{http} con
+Filebrowser-- que operan sobre un mismo directorio compartido
+(\texttt{/srv/share}). De este modo, un archivo creado desde un protocolo es
+inmediatamente accesible desde los dem\'as, sin duplicar la informaci\'on
+almacenada.
+
+\subsection{Configuraci\'on de Samba}
+
+La configuraci\'on reside en \texttt{/etc/smb.conf}. Las directivas
+esenciales y su justificaci\'on se resumen en la tabla
+\ref{tab:directivas-samba}.
+
+\begin{table}[H]
+\centering
+\caption{Directivas principales de la configuraci\'on de Samba}
+\label{tab:directivas-samba}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{5.4cm}p{8.4cm}@{}}
+    \toprule
+    \textbf{Directiva} & \textbf{Justificaci\'on} \\
+    \midrule
+    \texttt{security = user} & Exige autenticaci\'on con usuario y clave registrados \\
+    \texttt{map to guest = bad user} & Rechaza usuarios inv\'alidos sin otorgar acceso de invitado \\
+    \texttt{guest ok = no} & Proh\'ibe el acceso an\'onimo al recurso \\
+    \texttt{valid users} & Lista blanca de los usuarios autorizados \\
+    \texttt{create mask / directory mask} & \texttt{0666} y \texttt{0777}: los archivos de un protocolo quedan accesibles a los dem\'as \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+\begin{lstlisting}[style=terminal]
+[compartido]
+    path = /srv/share
+    browseable = yes
+    writable = yes
+    guest ok = no
+    valid users = nicolas joaquin david
+    create mask = 0666
+    directory mask = 0777
+\end{lstlisting}
+
+El acceso desde la terminal se verific\'o con \texttt{smbclient}, que
+autentica al usuario y permite listar y crear contenido en el recurso
+compartido:
+
+\capturaAPA{fig:archivos-smbclient}{Conexi\'on al recurso compartido con \texttt{smbclient}}{captura-archivos-smbclient.png}{Captura de pantalla de una sesi\'on \texttt{smbclient} contra el recurso compartido, autenticada con el usuario david y mostrando la lista de archivos y la creaci\'on de un directorio.}
+
+\subsection{Configuraci\'on de NFS}
+
+La exportaci\'n se define en \texttt{/etc/exports}. La opci\'on
+\texttt{fsid=0} establece el directorio como ra\'iz virtual del espacio
+\textsc{nfsv4}, por lo que el cliente monta la ruta remota \texttt{/} y no
+\texttt{/srv/share}:
+
+\begin{lstlisting}[style=terminal]
+/srv/share *(rw,sync,no_subtree_check,no_root_squash,fsid=0)
+
+$ showmount -e 192.168.0.2
+$ sudo mount -t nfs4 192.168.0.2:/ /mnt/servidor_archivos
+\end{lstlisting}
+
+La opci\'on \texttt{sync} prioriza la integridad de los datos al confirmar
+en disco antes de responder, mientras que \texttt{no\_subtree\_check}
+optimiza el rendimiento en las renombraciones.
+
+\capturaAPA{fig:archivos-nfs}{Verificaci\'on de exportaciones y montaje \textsc{nfs}}{captura-archivos-nfs.png}{Captura de pantalla mostrando la salida de \texttt{showmount -e} y el montaje de \texttt{/} en el punto de acceso del cliente.}
+
+\subsection{Interfaz web de archivos}
+
+Filebrowser expone el mismo directorio \texttt{/srv/share} a trav\'es de
+una interfaz web accesible desde cualquier navegador, sin instalar software
+adicional en el cliente. La inicializaci\'on de su base de datos y la
+creaci\'on de usuarios se realizan al desplegar el servicio:
+
+\begin{lstlisting}[style=terminal]
+$ filebrowser config init --database /database/filebrowser.db
+$ filebrowser config set --database /database/filebrowser.db \
+    --root /srv/share --address 0.0.0.0 --port 80 \
+    --auth.method json
+\end{lstlisting}
+
+\capturaAPA{fig:archivos-filebrowser}{Interfaz web de Filebrowser autenticada}{captura-archivos-filebrowser.png}{Captura de pantalla del navegador mostrando la pantalla de inicio de sesi\'on y el explorador de archivos sobre el directorio \texttt{/srv/share}.}
+
+% ============================================================================
+%  BLOQUE 3: SERVIDOR DHCP
+% ============================================================================
+\section{Servidor \textsc{dhcp}}
+
+El servicio de asignaci\'on din\'amica de direcciones se implement\'o con
+Kea, el servidor \textsc{dhcp} de ISC y sucesor del cl\'asico
+\texttt{dhcpd}, seleccionado por su soporte activo, su configuraci\'on
+basada en \textsc{json} y su manejo eficiente de las concesiones
+\cite{rfc2131, keaDocs}.
+
+\subsection{Arquitectura y segmentaci\'on de direcciones}
+
+El servicio se despleg\'o de manera centralizada sobre el host \texttt{dc1}.
+Para que \'unicamente este servidor otorgue direcciones, se desactiv\'o el
+servicio \textsc{dhcp} del router, evitando que dos servidores respondieran a
+las peticiones \textsc{discover} con ofertas distintas.
+
+La red se dividi\'o en dos segmentos l\'ogicos seg\'un la pol\'itica del
+proyecto: las direcciones inferiores a \texttt{192.168.0.110} corresponden a
+los equipos de rol, que requieren \textsc{ip} fija, mientras que el rango
+superior se reserva para la asignaci\'on din\'amica de los equipos de
+usuario. La figura \ref{fig:arquitectura-dhcp} representa el esquema del
+servicio.
+
+\figuraAPA{fig:arquitectura-dhcp}{Arquitectura del servicio \textsc{dhcp}: clientes, router y servidor}{%
+  \begin{tikzpicture}[
+      node distance=1.2cm and 1.6cm,
+      ser/.style={draw, rounded corners, minimum width=2.6cm,
+                  minimum height=0.9cm, align=center, font=\small},
+      cli/.style={draw, minimum width=2.4cm, minimum height=0.8cm,
+                  align=center, font=\small},
+      flujo/.style={-Stealth, thick}
+    ]
+    \node[ser] (kea) {Kea DHCP\\\texttt{192.168.0.2}};
+    \node[cli, left=of kea, yshift=0.7cm] (c1) {Equipo de usuario\\\texttt{.100+}};
+    \node[cli, left=of kea, yshift=-0.7cm] (c2) {Equipo de rol\\\texttt{.50--.99}};
+    \node[ser, right=of kea] (router) {Router\\\texttt{192.168.0.1}\\\footnotesize DHCP off};
+    \node[ser, below=0.9cm of kea] (dns) {DNS\\\texttt{192.168.0.2}\\\footnotesize mismo host};
+    \draw[flujo] (c1.east) -- (kea.west);
+    \draw[flujo] (c2.east) -- (kea.west);
+    \draw[flujo] (kea.east) -- (router.west);
+    \draw[flujo, dashed] (dns.north) -- (kea.south);
+  \end{tikzpicture}%
+}{Elaboraci\'on propia.}
+
+\subsection{Instalaci\'on y configuraci\'on del servidor}
+
+\begin{lstlisting}[style=terminal]
+$ apt update
+$ apt install -y kea-dhcp4-server
+\end{lstlisting}
+
+La configuraci\'on reside en \texttt{/etc/kea/kea-dhcp4.conf}, en formato
+\textsc{json}. El bloque \texttt{subnet4} define el \'ambito, el conjunto de
+direcciones y las opciones de red que se entregan al cliente:
+
+\begin{lstlisting}[style=terminal]
+"interfaces-config": { "interfaces": ["*"] },
+"lease-database": { "type": "memfile", "lfc-interval": 3600 },
+"subnet4": [{
+  "subnet": "192.168.0.0/24",
+  "pools": [{ "pool": "192.168.0.100 - 192.168.0.199" }],
+  "option-data": [
+    { "name": "domain-name-servers", "data": "192.168.0.2" },
+    { "name": "domain-name", "data": "sudoers.lan" },
+    { "name": "routers", "data": "192.168.0.1" }
+  ]
+}]
+\end{lstlisting}
+
+El par\'ametro \texttt{lfc-interval} indica cada cu\'antos segundos se
+compacta el archivo de concesiones. Las opciones de \texttt{option-data}
+garantizan que cada cliente reciba, sin intervenci\'on manual, la m\'ascara
+de subred, la puerta de enlace, el servidor \textsc{dns} y el dominio de
+b\'usqueda del proyecto.
+
+\capturaAPA{fig:dhcp-conf}{Archivo de configuraci\'on \texttt{kea-dhcp4.conf} con el \'ambito y las opciones de red}{captura-dhcp-conf.png}{Captura de pantalla del archivo de configuraci\'on de Kea mostrando el bloque \texttt{subnet4} con el \'ambito din\'amico, el servidor DNS, el dominio y la puerta de enlace definidos.}
+
+\subsection{Desactivaci\'on del \textsc{dhcp} del router}
+
+El router de la red manten\'ia su propio servicio \textsc{dhcp} activo,
+lo que generaba un conflicto: tanto el router como Kea respond\'ian a los
+paquetes \textsc{discover}. Para garantizar que el \'unico servidor
+\textsc{dhcp} de la red sea el implementado en el proyecto, se accedi\'o a
+la interfaz de administraci\'on del router y se deshabilit\'o el servicio en
+la \textsc{lan}, manteniendo la configuraci\'on de la puerta de enlace.
+
+\capturaAPA{fig:router-disable}{Interfaz de administraci\'on del router con el servidor \textsc{dhcp} deshabilitado}{captura-router-disable.png}{Captura de pantalla de la configuraci\'on \textsc{lan} del router TP-Link mostrando la opci\'on \textsc{dhcp server} en estado deshabilitado.}
+
+\subsection{Verificaci\'on y pruebas de asignaci\'on}
+
+Antes de probar con clientes reales se valid\'o la sintaxis de la
+configuraci\'on y el estado del servicio:
+
+\begin{lstlisting}[style=terminal]
+$ kea-dhcp4 -t /etc/kea/kea-dhcp4.conf
+Configuration check successful
+$ systemctl restart kea-dhcp4-server
+$ systemctl status kea-dhcp4-server
+\end{lstlisting}
+
+\capturaAPA{fig:estado-kea}{Estado del servicio \texttt{kea-dhcp4-server} en el servidor}{captura-systemctl-kea.png}{Captura de pantalla de la terminal mostrando el estado activo del servicio \texttt{kea-dhcp4-server} con la ruta de la configuraci\'on cargada.}
+
+Desde un equipo cliente se solicit\'o una concesion y se verific\'o la
+configuraci\'on recibida:
+
+\begin{lstlisting}[style=terminal]
+$ sudo dhclient -v eth0
+$ ip a
+$ ip route
+\end{lstlisting}
+
+\capturaAPA{fig:cliente-ip}{Direcci\'on asignada al cliente tras el arranque de \texttt{dhclient}}{captura-cliente-ip.png}{Captura de pantalla de la salida de \texttt{ip a} en el cliente mostrando la direcci\'on IP dentro del \'ambito din\'amico, la m\'ascara \texttt{/24} y el estado de la interfaz.}
+
+Cada asignaci\'n queda registrada en el archivo de concesiones, que
+identifica la direcci\'n entregada, la direcci\'n \textsc{mac} del cliente y
+los tiempos de validez:
+
+\capturaAPA{fig:leases}{Concesiones registradas en \texttt{kea-leases4.csv}}{captura-leases.png}{Captura de pantalla del archivo de concessions mostrando las concesiones activas: direcci\'on IP, direcci\'on MAC del cliente, \texttt{hostname} y tiempos de renovaci\'on y expiraci\'on.}
+
+Finalmente se verific\'o la conectividad del cliente hacia la puerta de
+enlace y hacia el servidor \textsc{dns}, lo que confirma que la
+configuraci\'n entregada por \textsc{dhcp} permite alcanzar los servicios
+internos:
+
+\capturaAPA{fig:ping-gateway}{Prueba de conectividad desde el cliente hacia la puerta de enlace}{captura-ping-router-gateway.png}{Captura de pantalla de la terminal del cliente mostrando las respuestas de \texttt{ping} hacia la puerta de enlace \texttt{192.168.0.1} y hacia el servidor del proyecto.}
+
+% ============================================================================
+%  BLOQUE 4: SERVIDOR WEB CON PROXY INVERSO
+% ============================================================================
+\section{Servidor Web con proxy inverso}
+
+El servidor web se implement\'o con Nginx, que cumple un doble rol: aloja
+el sitio institucional del proyecto y act\'ua como proxy inverso
+centralizado hacia los servicios internos que operan en puertos no
+publicados, como el gestor de impresi\'on \textsc{cups}, el explorador de
+archivos, el panel de gesti\'on de contenedores y el servidor de monitoreo
+\cite{nginxDocs}.
+
+\subsection{Arquitectura del servicio}
+
+Todo el tr\'afico web entrante se protege mediante \textsc{https} con
+certificados \textsc{tls} que incluyen nombres alternativos en formato
+comodi\'n. La figura \ref{fig:arquitectura-web} ilustra el esquema
+implementado.
+
+\figuraAPA{fig:arquitectura-web}{Arquitectura del servidor web: Nginx como proxy inverso y servidor de contenido}{%
+  \begin{tikzpicture}[
+      node distance=1cm and 1.6cm,
+      servicio/.style={draw, rounded corners, minimum width=2.4cm,
+                       minimum height=0.8cm, align=center, font=\small},
+      cliente/.style={draw, circle, minimum size=0.8cm, font=\small},
+      linea/.style={-Stealth, thick}
+    ]
+    \node[servicio, fill=blue!10] (nginx) {Nginx\\{\footnotesize HTTP/HTTPS}};
+    \node[servicio, right=2.2cm of nginx, yshift=2cm] (cups) {CUPS\\{\footnotesize :631}};
+    \node[servicio, right=2.2cm of nginx, yshift=0.7cm] (files) {Filebrowser\\{\footnotesize :8082}};
+    \node[servicio, right=2.2cm of nginx, yshift=-0.7cm] (portainer) {Portainer\\{\footnotesize :9000}};
+    \node[servicio, right=2.2cm of nginx, yshift=-2cm] (zabbix) {Zabbix Web\\{\footnotesize :80}};
+    \node[servicio, below=of nginx] (html) {/var/www/\\\footnotesize html};
+    \node[cliente, left=of nginx] (browser) {Web};
+    \draw[linea] (browser) -- node[above,font=\scriptsize]{443} (nginx);
+    \draw[linea] (nginx) -- (cups);
+    \draw[linea] (nginx) -- (files);
+    \draw[linea] (nginx) -- (portainer);
+    \draw[linea] (nginx) -- (zabbix);
+    \draw[linea] (nginx) -- (html);
+  \end{tikzpicture}%
+}{Elaboraci\'on propia.}
+
+La tabla \ref{tab:virtual-hosts} resume los \emph{virtual hosts}
+configurados, sus dominios y su destino.
+
+\begin{table}[H]
+\centering
+\caption{\emph{Virtual hosts} configurados en Nginx}
+\label{tab:virtual-hosts}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{4.6cm}p{4cm}p{5.2cm}@{}}
+    \toprule
+    \textbf{Subdominio} & \textbf{Destino} & \textbf{Funci\'on} \\
+    \midrule
+    \texttt{web.sudoers.lan} & \texttt{/var/www/html} & Sitio institucional del proyecto \\
+    \texttt{print.sudoers.lan} & \texttt{127.0.0.1:631} & Proxy inverso al servicio de impresi\'on \\
+    \texttt{files.sudoers.lan} & \texttt{127.0.0.1:8082} & Proxy inverso al gestor de archivos \\
+    \texttt{portainer.sudoers.lan} & \texttt{127.0.0.1:9000} & Proxy inverso al panel de gesti\'on \\
+    \texttt{zabbix.sudoers.lan} & \texttt{192.168.0.3:80} & Proxy inverso al monitoreo \\
+    \texttt{\_} (por defecto) & Redirecci\'on a \textsc{https} & Acceso por IP o dominios no declarados \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+\subsection{Instalaci\'on y arranque del servicio}
+
+\begin{lstlisting}[style=terminal]
+$ sudo apt update
+$ sudo apt install -y nginx openssl
+$ systemctl enable --now nginx
+\end{lstlisting}
+
+El paquete \texttt{nginx} aporta el servidor web de arquitectura orientada a
+eventos, adecuado para cargas concurrentes, y \texttt{openssl} permite
+generar los certificados \textsc{x.509} requeridos para el protocolo
+\textsc{https} \cite{opensslDocs}. Las directivas globales se ubican en
+\texttt{/etc/nginx/nginx.conf} y cada \emph{virtual host} en
+\texttt{/etc/nginx/sites-available/}.
+
+\capturaAPA{fig:web-arranque}{Arranque del servicio Nginx en el servidor}{captura-web-arranque.png}{Captura de pantalla de la terminal mostrando la instalaci\'on de los paquetes y el arranque del servicio \texttt{nginx} con su estado activo.}
+
+\subsection{Aplicaci\'on de \textsc{tls} y pruebas de acceso}
+
+Tras emitir el certificado con \texttt{openssl} y asociarlo al
+\emph{virtual host} se verific\'o la negociaci\'n segura y la publicaci\'on
+del sitio a trav\'es del proxy inverso.
+
+\capturaAPA{fig:web-cert}{Certificado \textsc{tls} emitido para el servidor web}{captura-web-cert.png}{Captura de pantalla de la salida de \texttt{openssl} mostrando los datos del certificado generado, incluido el nombre alternativo del dominio.}
+
+\capturaAPA{fig:web-proxy}{Regla de proxy inverso configurada en Nginx}{captura-web-proxy.png}{Captura de pantalla de la configuraci\'n del \emph{virtual host} mostrando las directivas \texttt{proxy\_pass} y \texttt{proxy\_set\_header} que reencaminan la petici\'on al servicio interno.}
+
+\capturaAPA{fig:web-sitio}{Sitio institucional publicado a trav\'es del proxy inverso}{captura-web-sitio.png}{Captura de pantalla del navegador mostrando el sitio web del proyecto cargado correctamente mediante el subdominio configurado.}
+
+% ============================================================================
+%  BLOQUE 5: CONTROLADOR DE DOMINIO SAMBA 4 ACTIVE DIRECTORY
+% ============================================================================
+\section{Controlador de dominio Samba 4 Active Directory}
+
+El despliegue del dominio constituye el n\'ucleo de identidad de la
+infraestructura. Samba 4 integra en un \'unico daemon los protocolos que
+forman Active Directory: \textsc{ldap} para el directorio, Kerberos para la
+autenticaci\'on y el \textsc{dns} propio del dominio
+\cite{sambateam2024, rfc4511, rfc4120}.
+
+\subsection{Preparaci\'on del sistema}
+
+Un controlador de dominio es el punto de referencia de identidad de toda
+la red, por lo que su nombre y su direcci\'on \textsc{ip} deben ser estables
+y conocidos de antemano. Se fij\'o el nombre \texttt{dc1} y su nombre
+completamente cualificado \texttt{dc1.sudoers.lan}:
+
+\begin{lstlisting}[style=terminal]
+$ hostnamectl set-hostname dc1
+$ hostnamectl status | head -3
+  Static hostname: dc1
+  Operating System: Debian GNU/Linux 12 (bookworm)
+\end{lstlisting}
+
+\capturaAPA{fig:hostname}{Identidad del host \texttt{dc1} configurada en el servidor}{captura-hostname.png}{Captura de pantalla mostrando la salida de \texttt{hostnamectl status} con el nombre de host \texttt{dc1} y la distribuci\'on del sistema operativo.}
+
+Un controlador de dominio no puede tener una direcci\'on variable, ya que
+Kerberos y el \textsc{dns} lo referencian constantemente. Se garantiz\'o que
+\texttt{dc1} resuelva a \texttt{192.168.0.2/24} en la interfaz cableada y se
+registr\'o en \texttt{/etc/hosts}:
+
+\begin{lstlisting}[style=terminal]
+$ ip -4 a show eno1
+    inet 192.168.0.2/24 brd 192.168.0.255 scope global eno1
+
+$ grep -E 'dc1|sudoers' /etc/hosts
+192.168.0.2   dc1.sudoers.lan   dc1
+\end{lstlisting}
+
+\capturaAPA{fig:ip-fija}{Direcci\'on \textsc{ip} fija \texttt{192.168.0.2/24} en la interfaz cableada}{captura-ip-fija.png}{Captura de pantalla de la salida de \texttt{ip -4 a show eno1} con la direcci\'on fija del servidor y la entrada de \texttt{/etc/hosts} que asocia \texttt{dc1.sudoers.lan} a esa direcci\'on.}
+
+\subsection{Instalaci\'on de Samba 4 y promoci\'on del servidor}
+
+Los paquetes del dominio se instalaron de forma nativa sobre el host, nunca
+dentro de un contenedor: el controlador de Samba es un servicio sensible al
+aislamiento de red y sistema de archivos que impone un contenedor
+\cite{sambateam2024}.
+
+\begin{lstlisting}[style=terminal]
+$ apt update
+$ apt install -y samba smbclient winbind krb5-user \
+    libpam-winbind libnss-winbind dnsutils
+\end{lstlisting}
+
+Junto con Samba se habilitaron los servicios que sustentan el dominio:
+el firewall \texttt{nftables}, el servidor de hora \texttt{chrony}
+--necesario porque Kerberos rechazaTickets con un desfase de reloj superior
+a cinco minutos-- y Docker para los servicios contenedorizados:
+
+\begin{lstlisting}[style=terminal]
+$ systemctl is-enabled samba-ad-dc nftables chrony docker
+samba-ad-dc.service    enabled
+nftables.service       enabled
+chrony.service         enabled
+docker.service         enabled
+\end{lstlisting}
+
+\capturaAPA{fig:servicios-host}{Servicios del host habilitados para el arranque}{captura-servicios-host.png}{Captura de pantalla de la salida de \texttt{systemctl is-enabled} con los servicios \texttt{samba-ad-dc}, \texttt{nftables}, \texttt{chrony} y \texttt{docker} en estado \texttt{enabled}.}
+
+La promoci\'n a controlador de dominio se realiza aprovisionando el dominio
+con \texttt{samba-tool}:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool domain provision \
+    --use-rfc2307 --realm=SUDOERS.LAN \
+    --domain=SUDOERS \
+    --server-role=dc \
+    --dns-backend=SAMBA_INTERNAL
+\end{lstlisting}
+
+La opci\'n \texttt{--use-rfc2307} activa la compatibilidad \textsc{posix}
+de los grupos, de modo que la gesti\'on de permisos Unix se integra con la
+del dominio.
+
+\subsection{Configuraci\'on del \textsc{dns} del dominio}
+
+El controlador de dominio administra la zona autoritativa interna. La
+resoluci\'n se verific\'o con \texttt{dig} tanto para registros de servicio
+como para las \textsc{srv} que publican Kerberos esta informaci\'on a
+los clientes:
+
+\begin{lstlisting}[style=terminal]
+$ dig +short SRV _ldap._tcp.sudoers.lan
+$ dig @dc1 sudoers.lan SOA
+$ dig @dc1 dc1.sudoers.lan A
+\end{lstlisting}
+
+\capturaAPA{fig:zona-dns}{Zona autoritativa \texttt{sudoers.lan} administrada por el controlador de dominio}{captura-zona-dns.png}{Captura de pantalla del contenido de la zona DNS del dominio, con los registros de servicios y de los servidores que la integran.}
+
+\capturaAPA{fig:dig-dc}{Resoluci\'n de nombres contra el controlador de dominio}{captura-dig-dc.png}{Captura de pantalla de la salida de \texttt{dig} con la resoluci\'n de los nombres del dominio contra el servidor \texttt{dc1}.}
+
+\capturaAPA{fig:dig-srv}{Registros \textsc{srv} publicados por el dominio}{captura-dig-srv.png}{Captura de pantalla de la consulta de registros \textsc{srv} del dominio, que publishing las direcciones de los servicios Kerberos y \textsc{ldap}.}
+
+\subsection{Configuraci\'on del servicio \textsc{dhcp} en el dominio}
+
+El servicio \textsc{dhcp} se despliega en un contenedor con la opci\'n
+\texttt{network\_mode: host}, condici\'n indispensable porque el protocolo
+utiliza la direcci\'n de difusi\'n por \textsc{broadcast} en el puerto
+\texttt{67/udp} y no funciona mapeado a trav\'es de un puente de red.
+
+\capturaAPA{fig:kea-ss}{Estado del servicio \textsc{dhcp} del dominio en ejecuci\'on}{captura-kea-ss.png}{Captura de pantalla del estado del servicio de asignaci\'on de direcciones dentro del dominio, confirmar la entrega de direcciones a los clientes.}
+
+\subsection{Administraci\'on de usuarios y grupos}
+
+La gesti\'on de identidades se centraliza en el dominio, lo que evita
+credenciales dispersas entre servicios. Las cuentas de administraci\'on se
+asignan al grupo \texttt{admins} y las de prueba al grupo de oficina:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool user create joaquin --given-name="Joaquin" \
+    --random-password
+$ samba-tool group add admins
+$ samba-tool group add users
+$ samba-tool group add machines
+\end{lstlisting}
+
+\capturaAPA{fig:usuarios}{Usuarios creados en el dominio}{captura-usuarios.png}{Captura de pantalla de la salida de \texttt{samba-tool user list} mostrando las cuentas registradas en el dominio.}
+
+\capturaAPA{fig:grupos}{Grupos de seguridad del dominio}{captura-grupos.png}{Captura de pantalla de la salida de \texttt{samba-tool group list} con los grupos definidos, incluidos los de administraci\'on y usuarios.}
+
+\capturaAPA{fig:user-show}{Detalle de una cuenta de usuario del dominio}{captura-user-show.png}{Captura de pantalla de la informaci\'n detallada de una cuenta de usuario, incluyendo su pertenencia a los grupos del dominio.}
+
+\subsection{Uni\'on de clientes y verificaci\'on del dominio}
+
+La uni\'on de un cliente al dominio se verifica obteniendo un ticket de
+Kerberos con \texttt{kinit} y list\'andolo con \texttt{klist}:
+
+\begin{lstlisting}[style=terminal]
+$ kinit joaquin
+Password for joaquin@SUDOERS.LAN:
+$ klist
+Ticket cache: FILE:/tmp/krb5cc_0
+Default principal: joaquin@SUDOERS.LAN
+\end{lstlisting}
+
+\capturaAPA{fig:kinit-cliente}{Obtenci\'on de ticket de Kerberos en el cliente}{captura-kinit-cliente.png}{Captura de pantalla de la terminal del cliente ejecutando \texttt{kinit} para obtener un ticket de Kerberos del dominio.}
+
+\capturaAPA{fig:klist}{Listado de tickets de Kerberos del cliente}{captura-kinit-klist.png}{Captura de pantalla de la salida de \texttt{klist} mostrando la cach\'e de tickets y el principal por defecto del usuario autenticado.}
+
+La resoluci\'n de grupos en el lado del cliente se verific\'o con
+\texttt{getent}, que confirma la integraci\'on de \texttt{winbind} con la
+resoluci\'on de nombres:
+
+\capturaAPA{fig:getent}{Resoluci\'on de grupos del dominio en el cliente}{captura-getent.png}{Captura de pantalla de la salida de \texttt{getent group} mostrando los grupos del dominio resueltos correctamente en el cliente.}
+
+El acceso a los recursos compartidos se verific\'o con \texttt{smbclient}
+usando las credenciales del dominio:
+
+\capturaAPA{fig:smbclient-ad}{Acceso a recursos compartidos con credenciales del dominio}{captura-smbclient.png}{Captura de pantalla de una sesi\'on \texttt{smbclient} autenticada con las credenciales del dominio, mostrando el acceso al recurso compartido.}
+
+La informaci\'n general del dominio se consult\'o con las utilidades
+propias de Samba:
+
+\capturaAPA{fig:domain-info}{Informaci\'on del dominio y de la lista de equipos}{captura-domain-info.png}{Captura de pantalla de la salida de \texttt{samba-tool domain info} con los datos del dominio y su relaci\'on de confianza.}
+
+\capturaAPA{fig:computer-list}{Equipos unidos al dominio}{captura-computer-list.png}{Captura de pantalla de la salida de \texttt{samba-tool computer list} mostrando los equipos que han unido al dominio.}
+
+\subsection{Puertos publicados por el dominio}
+
+El controlador de dominio expone un conjunto definido de puertos, cuya
+disponibilidad se verific\'o desde el cliente:
+
+\capturaAPA{fig:puertos-ad}{Verificaci\'on de los puertos de servicio del dominio}{captura-puertos-ad.png}{Captura de pantalla de la terminal del cliente mostrando los puertos del controlador de dominio que responden: DNS, Kerberos, \textsc{ldap} y SMB.}
+
+% ============================================================================
+%  BLOQUE 6: DNS DEL DOMINIO Y SERVIDOR WEB INTEGRADO (a8)
+% ============================================================================
+\section{DNS del dominio y servidor Web integrado}
+
+La \'ultima etapa del proyecto consolid\'o en un \'unico dise\~no los dos
+servicios que articulan toda la infraestructura: el \textsc{dns} autoritativo
+del dominio \texttt{sudoers.lan}, servido por el propio controlador de
+dominio, y el servidor web que publica los servicios de la intranet por
+nombre. Este bloque describe la soluci\'n final, donde el \textsc{dns} y la
+puerta web convergen sobre una \'unica direcci\'n de entrada \cite{rfc1034}.
+
+\subsection{Arquitectura conjunta \textsc{dns} + \textsc{web}}
+
+Como todos los servicios se ejecutan en el \'unico servidor
+(\texttt{192.168.0.2}), el \textsc{dns} del dominio y la puerta web comparten
+esa misma direcci\'n. La separaci\'on entre ambos es \textbf{l\'ogica} y no
+f\'isica: el \textsc{dns} se atiende de forma nativa desde el daemon del
+controlador de dominio, mientras que Nginx corre en un contenedor que
+publica los puertos 80 y 443 \cite{tanenbaum2017}.
+
+La tabla \ref{tab:mapa-nombres} resume los nombres gestionados por el
+\textsc{dns} del dominio y el servicio al que dirige cada uno el proxy web.
+
+\begin{table}[H]
+\centering
+\caption{Mapa de nombres del dominio y su backend en el proxy}
+\label{tab:mapa-nombres}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{5.2cm}p{4.4cm}p{4.2cm}@{}}
+    \toprule
+    \textbf{Nombre} & \textbf{Backend} & \textbf{Registro} \\
+    \midrule
+    \texttt{sudoers.lan}, \texttt{web}, \texttt{www} & Portal est\'atico (Nginx) & A \\
+    \texttt{dc1.sudoers.lan} & Controlador de dominio (DNS, SMB) & A \\
+    \texttt{print.sudoers.lan} & \texttt{tso-print:631} (CUPS) & A \\
+    \texttt{portainer.sudoers.lan} & \texttt{tso-portainer:9000} & A \\
+    \texttt{joaquin.sudoers.lan} & P\'agina del equipo (est\'atico) & A \\
+    \texttt{david.sudoers.lan} & \texttt{192.168.0.51:8080} & A \\
+    \texttt{nicolas.sudoers.lan} & \texttt{192.168.0.52:8080} & A \\
+    \texttt{\_ldap.\_tcp.dc.\_msdcs} & \texttt{dc1}:389 (LDAP) & SRV \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+\subsection{El \textsc{dns} autoritativo servido por Samba}
+
+Un dominio de Active Directory depende por completo del \textsc{dns}: los
+clientes lo consultan para descubrir d\'onde reside cada servicio, tanto
+mediante nombres comunes como mediante registros de descubrimiento
+\textsc{srv} \cite{rfc2782, msft_activedirectory}. Por esta raz\'on, durante
+el aprovisionamiento se indic\'o expl\'icitamente que el propio Samba
+administrase la zona mediante el backend \textsc{samba\_internal}:
+
+\begin{lstlisting}[style=terminal]
+$ samba-tool domain provision \
+    --realm=SUDOERS.LAN --domain=SUDOERS \
+    --server-role=dc --dns-backend=SAMBA_INTERNAL \
+    --use-rfc2307 --host-name=dc1 --host-ip=192.168.0.2 \
+    --option="dns forwarder = 192.168.0.1"
+\end{lstlisting}
+
+Con este backend los registros se almacenan dentro del directorio y se
+actualizan de forma din\'amica, sin necesidad de archivos de zona
+manuales. La configuraci\'n resultante queda registrada en
+\texttt{/etc/samba/smb.conf}:
+
+\begin{lstlisting}[style=terminal]
+$ grep -E 'server role|dns|realm' /etc/samba/smb.conf
+[global]
+    server role = active directory domain controller
+    realm = SUDOERS.LAN
+    dns forwarder = 192.168.0.1
+    dns update command = /usr/sbin/samba_dnsupdate
+\end{lstlisting}
+
+\capturaAPA{fig:smb-dns}{Zona \texttt{sudoers.lan} y rol del controlador de dominio en \texttt{smb.conf}}{captura-smb-dns.png}{Captura de pantalla mostrando la salida del \texttt{grep} sobre \texttt{/etc/samba/smb.conf} con el rol \texttt{active directory domain controller}, el \textit{realm} \texttt{SUDOERS.LAN} y la directiva \texttt{dns forwarder = 192.168.0.1}.}
+
+\subsection{Registros de la zona y de descubrimiento}
+
+El contenido \'integral de la zona se consulta con \texttt{samba-tool dns},
+que devuelve los registros \textsc{a} de todos los servicios publicados:
+
+\begin{lstlisting}[style=terminal]
+$ kinit administrator
+$ samba-tool dns query dc1.sudoers.lan sudoers.lan @ ALL -k yes
+Name=, Records=8, Children=0
+  DC@SUDOERS.LAN: type=A, value=192.168.0.2
+  web@SUDOERS.LAN: type=A, value=192.168.0.2
+  print@SUDOERS.LAN: type=A, value=192.168.0.2
+  portainer@SUDOERS.LAN: type=A, value=192.168.0.2
+\end{lstlisting}
+
+\capturaAPA{fig:zona-dns-a8}{Zona DNS completa del dominio consultada con \texttt{samba-tool dns}}{captura-zona-dns-a8.png}{Captura de pantalla mostrando la salida de \texttt{samba-tool dns query dc1.sudoers.lan sudoers.lan @ ALL} con los registros A de \texttt{dc1}, \texttt{web}, \texttt{print}, \texttt{portainer} y de los administradores, todos hacia \texttt{192.168.0.2}.}
+
+La resoluci\'n de un nombre individual se verifica con \texttt{dig}, que
+responde con la direcci\'n del proxy:
+
+\begin{lstlisting}[style=terminal]
+$ dig web.sudoers.lan
+;; ANSWER SECTION:
+web.sudoers.lan. 900 IN A 192.168.0.2
+\end{lstlisting}
+
+\capturaAPA{fig:dig-web}{Resoluci\'on de \texttt{web.sudoers.lan} por el \textsc{dns} del dominio}{captura-dig-web.png}{Captura de pantalla mostrando la salida de \texttt{dig web.sudoers.lan} con la respuesta \texttt{A 192.168.0.2}.}
+
+Los registros \textsc{srv} de descubrimiento fueron generados
+autom\'aticamente durante el aprovisionamiento y son los que permiten a los
+clientes localizar el \textsc{ldap} del dominio:
+
+\begin{lstlisting}[style=terminal]
+$ dig _ldap._tcp.dc._msdcs.sudoers.lan SRV
+;; ANSWER SECTION:
+_ldap._tcp.dc._msdcs.sudoers.lan. 900 IN SRV 0 100 389 dc1.sudoers.lan.
+\end{lstlisting}
+
+\capturaAPA{fig:dig-srv-a8}{Registros \textsc{srv} de descubrimiento generados por el controlador de dominio}{captura-dig-srv-a8.png}{Captura de pantalla mostrando la salida de \texttt{dig \_ldap.\_tcp.dc.\_msdcs.sudoers.lan SRV} con el registro SRV apuntando al puerto 389 de \texttt{dc1.sudoers.lan}.}
+
+\subsection{Registros de los equipos de administraci\'on}
+
+Los nombres de los miembros del equipo tambi\'en resuelven hacia el proxy y
+no hacia la direcci\'n de sus m\'aquinas. Gracias a esta indirecci\'on, un
+backend puede cambiar de m\'aquina o de puerto sin que los nombres ni los
+clientes se modifiquen. Los registros se crean con un script idempotente
+que puede ejecutarse varias veces sin duplicarlos:
+
+\begin{lstlisting}[style=terminal]
+$ sudo kinit administrator
+$ sudo bash dc/dns-records.sh
+==> Servicios web alojados en maquinas de admins (via proxy) ...
+  ok    david.sudoers.lan    ->  192.168.0.2  (ya existe)
+  ok    nicolas.sudoers.lan  ->  192.168.0.2  (ya existe)
+\end{lstlisting}
+
+\capturaAPA{fig:dns-records}{Creaci\'on idempotente de los registros de los administradores}{captura-dns-records.png}{Captura de pantalla mostrando la salida de \texttt{sudo bash dc/dns-records.sh} con los registros \texttt{david} y \texttt{nicolas} apuntando a \texttt{192.168.0.2}.}
+
+\subsection{Reenv\'io hacia Internet}
+
+Para que los clientes resuelvan tambi\'en nombres externos, el controlador
+act\'ua como \textit{forwarder} hacia el router de la red. De esta manera una
+\'unica consulta al \textsc{dns} del dominio cubre tanto los nombres internos
+como los de Internet, sin configurar un segundo servidor de nombres:
+
+\begin{lstlisting}[style=terminal]
+$ dig google.com @192.168.0.2 +short
+142.250.78.78          # resolucion externa via el forwarder 192.168.0.1
+\end{lstlisting}
+
+\capturaAPA{fig:dig-externo}{Resoluci\'on de nombres externos a trav\'es del \textit{forwarder}}{captura-dig-externo.png}{Captura de pantalla mostrando la salida de \texttt{dig google.com @192.168.0.2} con una direcci\'on IP p\'ublica resuelta.}
+
+\subsection{Integraci\'on con el servicio \textsc{dhcp}}
+
+Para que una estaci\'n reci\'en conectada quede operativa sin intervenci\'on
+manual, el servidor \textsc{dhcp} entrega junto con la direcci\'n las opciones
+de red que apuntan al \textsc{dns} del dominio: la direcci\'n
+\texttt{192.168.0.2}, el dominio \texttt{sudoers.lan}, la puerta de enlace
+\texttt{192.168.0.1} y el servidor de hora. Toda m\'aquina de la red queda
+as\'i capaz de resolver los nombres internos de forma transparente.
+
+\subsection{Nginx como contenedor y proxy inverso}
+
+El servidor web se despliega como servicio del \texttt{docker-compose} del
+proyecto, a diferencia del controlador de dominio que corre de forma
+nativa. La definici\'n del servicio establece los puertos publicados y los
+vol\'umenes con el portal y los certificados:
+
+\begin{lstlisting}[style=terminal]
+web:
+  build: ./services/web          # nginx:1.27-alpine
+  container_name: tso-web
+  ports:
+    - "80:80"                    # redirige a HTTPS
+    - "443:443"                  # HTTPS (termina TLS)
+  volumes:
+    - ./services/web/public:/usr/share/nginx/html:ro
+    - ./services/web/tls:/etc/nginx/tls:ro      # CA + cert wildcard
+  restart: always
+\end{lstlisting}
+
+\capturaAPA{fig:compose-web}{Servicio \texttt{web} definido en el \texttt{docker-compose.yml}}{captura-compose-web.png}{Captura de pantalla mostrando el bloque \texttt{web:} del \texttt{docker-compose.yml} con los puertos 80/443, los vol\'umenes del portal y de \textsc{tls}, y la directiva \texttt{restart: always}.}
+
+Nginx enruta cada petici\'on por nombre y, adem\'as, redirige todo el
+tr\'afico en claro hacia el canal cifrado:
+
+\begin{lstlisting}[style=terminal]
+server {
+    listen 80;                                 # HTTP: solo redirige
+    server_name sudoers.lan web.sudoers.lan www.sudoers.lan;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;                            # HTTPS: portal
+    http2 on;
+    server_name sudoers.lan web.sudoers.lan www.sudoers.lan;
+    ssl_certificate     /etc/nginx/tls/server.crt;
+    ssl_certificate_key /etc/nginx/tls/server.key;
+    root  /usr/share/nginx/html;
+    index index.html;
+}
+\end{lstlisting}
+
+\capturaAPA{fig:nginx-conf}{Virtual host del portal y redirecci\'on de \textsc{http} a \textsc{https}}{captura-nginx-conf.png}{Captura de pantalla mostrando el contenido de la configuraci\'n de Nginx con el bloque \texttt{server} del portal y la directiva \texttt{return 301 https://\$host\$request\_uri}.}
+
+\subsection{\textsc{https} con autoridad de certificaci\'on interna}
+
+El portal se publica mediante \textsc{https} con un certificado
+\textit{wildcard} que cubre todos los subdominios, firmado por una
+autoridad de certificaci\'on interna generada con el script
+\texttt{services/web/tls-gen.sh}:
+
+\begin{lstlisting}[style=terminal]
+$ sudo bash services/web/tls-gen.sh
+=> Generando CA interna ...
+=> Generando certificado para *.sudoers.lan ...
+============================================
+  CA:       ca.crt (instalar en los clientes para confiar)
+  Server:   server.crt / server.key  (*.sudoers.lan, 825 dias)
+============================================
+$ docker compose up -d --build web
+\end{lstlisting}
+
+\capturaAPA{fig:tls-gen}{Generaci\'on de la autoridad interna y del certificado \textit{wildcard}}{captura-tls-gen.png}{Captura de pantalla mostrando la salida de \texttt{sudo bash services/web/tls-gen.sh} con la creaci\'on de la autoridad de certificaci\'on y del certificado \texttt{*.sudoers.lan}.}
+
+El acceso al portal se verifica con \texttt{curl}, que devuelve el c\'odigo
+de respuesta correcto:
+
+\begin{lstlisting}[style=terminal]
+$ curl -skI https://web.sudoers.lan
+HTTP/1.1 200 OK
+Server: nginx
+\end{lstlisting}
+
+\capturaAPA{fig:curl-web}{Acceso \textsc{https} al portal servido por Nginx}{captura-curl-web.png}{Captura de pantalla mostrando la salida de \texttt{curl -skI https://web.sudoers.lan} con el c\'odigo \texttt{200 OK} y el encabezado \texttt{Server: nginx}.}
+
+\subsection{Proxy hacia los servicios de los administradores}
+
+Los servicios alojados en los equipos de los administradores se exponen
+tambi\'en a trav\'es del proxy. Sus nombres resuelven hacia
+\texttt{192.168.0.2} y Nginx alcanza la m\'aquina correspondiente por la red
+plana, de modo que el \'unico puerto visible desde la \textsc{lan} es el
+443:
+
+\begin{lstlisting}[style=terminal]
+server {
+    listen 443 ssl;
+    server_name david.sudoers.lan;
+    location / {
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $david_upstream http://192.168.0.51:8080;
+        proxy_pass $david_upstream;
+        proxy_connect_timeout 5s;
+    }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[style=terminal]
+$ dig david.sudoers.lan +short          # el cliente resuelve el proxy
+192.168.0.2
+$ curl -sk https://david.sudoers.lan    # y el proxy responde la maquina
+... (contenido del servicio de David) ...
+\end{lstlisting}
+
+\capturaAPA{fig:curl-david}{Servicio de la m\'aquina de David publicado a trav\'es del proxy}{captura-curl-david.png}{Captura de pantalla mostrando la resoluci\'on \texttt{dig david.sudoers.lan +short} con \texttt{192.168.0.2} y la respuesta de \texttt{curl -sk https://david.sudoers.lan} con el contenido del servicio del administrador.}
+
+\subsection{Pruebas de integraci\'on desde un cliente}
+
+La validaci\'on final se realiz\'o desde un equipo de la \textsc{lan}, que
+recibi\'o su direcci\'n y su servidor \textsc{dns} por \textsc{dhcp}, y
+confirm\'o que tanto la resoluci\'o de nombres como el acceso web funcionan
+sin configuraci\'on manual:
+
+\begin{lstlisting}[style=terminal]
+$ dig web.sudoers.lan +short             # desde el cliente
+192.168.0.2
+$ curl -sk https://web.sudoers.lan | head -5
+<!DOCTYPE html>
+<html lang="es">
+... (portal de la intranet) ...
+\end{lstlisting}
+
+\capturaAPA{fig:cliente-dig}{Resoluci\'on de nombres desde un cliente de la red}{captura-cliente-dig.png}{Captura de pantalla mostrando la salida de \texttt{dig web.sudoers.lan} ejecutada en un cliente, respondiendo \texttt{192.168.0.2}.}
+
+\capturaAPA{fig:cliente-web}{Acceso \textsc{https} al portal desde el navegador del cliente}{captura-cliente-web.png}{Captura de pantalla del navegador de un cliente mostrando el portal de la intranet cargado por \texttt{https://web.sudoers.lan} con el candado de confianza de la autoridad interna.}
+
+La misma validaci\'on se repiti\'o para el portal, la consola de impresi\'on,
+el panel de gesti\'on de contenedores y las p\'aginas de los miembros, lo que
+confirm\'o que el \textsc{dns} y el proxy web operan como un \'unico sistema
+de nombres y de publicaci\'on.
+
+% ============================================================================
+%  BLOQUE 7: MEDIDAS DE SECURIZACI\'ON
+% ============================================================================
+\section{Medidas de seguridad aplicadas}
+
+La seguridad de la infraestructura se abord\'o de forma transversal,
+aplicando controles espec\'ificos en cada capa de la arquitectura descrita
+en el cap\'itulo anterior \cite{stewart2017}.
+
+\subsection{Seguridad perimetral y control de acceso}
+
+El firewall \texttt{nftables} opera con pol\'itica \textsc{drop} por
+defecto, de modo que todo el tr\'afico no permitido se descarta
+expl\'icitamente. El acceso al puerto \texttt{22/tcp} se restringe a los
+rango de direcciones reservadas para los administradores de TI, de modo
+que los puestos operativos no pueden alcanzar la consola del servidor:
+
+\begin{lstlisting}[style=terminal]
+# Politica por defecto: descartar todo
+$ nft add table inet filter
+$ nft add chain inet filter input '{ type filter hook input priority 0; policy drop; }'
+
+# Permitir administracion solo desde el rango de TI
+$ nft add rule inet filter input ip saddr 192.168.0.50-192.168.0.52 \
+    tcp dport 22 ct state new accept
+\end{lstlisting}
+
+\subsection{Aislamiento de servicios internos}
+
+Los servicios que no deben exponerse a la red se mantienen en puertos
+internos y se publican \'unicamente a trav\'es del proxy inverso Nginx. De
+esta forma, la base de datos \textsc{postgresql} y el panel de gesti\'on de
+contenedores no son alcanzables de forma directa desde la \textsc{lan}.
+
+\subsection{Autenticaci\'on y control de acceso por rol}
+
+La gesti\'on centralizada de identidades en el dominio permite asignar
+permisos a los recursos compartidos por grupo de usuarios, en lugar de
+otorgar acceso individual a cada estaci\'on. La autorizaci\'on del correo
+se restricti\'a a los usuarios autenticados mediante \textsc{sasl}, y el
+env\'io an\'onimo queda deshabilitado con la opci\'on
+\texttt{noanonymous}.
+
+\subsection{Cifrado del tr\'afico}
+
+Las comunicaciones sensibles se protegen con \textsc{tls} mediante
+certificados emitidos para los dominios internos, lo que impide el
+tr\'ansito de credenciales en texto claro tanto en el env\'io de correo
+como en el acceso web.
+
+% ============================================================================
+%  BLOQUE 7: PRUEBAS Y VALIDACI\'ON
+% ============================================================================
+\section{Pruebas funcionales y validaci\'on de la infraestructura}
+
+La validaci\'on final se realiz\'o comprobando la resolutividad de los
+nombres del dominio, la obtenci\'on de una direcci\'on v\'alida por
+\textsc{dhcp} y el acceso a los servicios publicados a trav\'es del proxy
+inverso. Las pruebas ejecutadas desde el cliente fueron:
+
+\begin{lstlisting}[style=terminal]
+$ ping -c 4 192.168.0.2
+$ dig @192.168.0.2 web.sudoers.lan
+$ curl -I https://web.sudoers.lan
+$ kinit joaquin
+\end{lstlisting}
+
+La obtenci\'n de la direcci\'n por \textsc{dhcp} se valid\'o mediante la
+salida de \texttt{dhclient}, en la que el cliente renueva la concesion
+previa y recibe una direcci\'n dentro del \'ambito din\'amico, junto con la
+m\'ascara, la puerta de enlace y el servidor \textsc{dns} del proyecto.
+Esta renovaci\'n result\'o especialmente significativa porque la direcci\'n
+anterior proven\'ia del servicio \textsc{dhcp} del router, y su
+sustituci\'n confirm\'o que el servidor del dominio asume \'unicamente la
+totalidad de las concessions de la red.
+
+Los resultados obtenidos confirman que los tres servicios operan de forma
+conjunta: el cliente obtiene su direcci\'n, resuelve los nombres del dominio
+contra el controlador de dominio y accede a los servicios publicados a
+trav\'es del proxy inverso, validando la integraci\'on integral de la
+infraestructura.

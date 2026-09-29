@@ -1,0 +1,160 @@
+% ============================================================================
+%  3. DIAGRAMA ARQUITECTÓNICO FINAL
+%  ----------------------------------------------------------------------------
+%  Fuente: TSO-II-final/docs/a10.md, ajustado con los datos de red
+%  vigentes del proyecto (AGENTS.md).
+% ============================================================================
+
+\section{Diagrama arquitectónico final}
+
+La infraestructura del banco Sudoers se diseñó sobre una red local única
+(\texttt{192.168.0.0/24}) que se segmenta l\'ogicamente por roles y nivel de
+acceso, de modo que cada zona expone \'unicamente los servicios que
+necesita. Esta secci\'on documenta la segmentaci\'on adoptada, los roles
+asignados a cada servidor, el flujo de comunicaci\'on resultante y la
+justificaci\'on t\'ecnica del dise\~no.
+
+\subsection{Segmentaci\'on de red}
+
+La red se divide en cuatro zonas funcionales, delimitadas por rangos de
+direcciones y pol\'iticas de filtrado distintas, tal como se detalla en la
+tabla \ref{tab:zonas-red}.
+
+\begin{table}[H]
+\centering
+\caption{Segmentaci\'on de la red local por zonas funcionales}
+\label{tab:zonas-red}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{2.4cm}p{4.2cm}p{3.4cm}p{4cm}@{}}
+    \toprule
+    \textbf{Zona} & \textbf{Rango} & \textbf{Funci\'on} & \textbf{Equipos} \\
+    \midrule
+    A & \texttt{192.168.0.1} & Per\'imeter y salida a Internet & Router TP-Link TL-WR850N \\
+    B & \texttt{192.168.0.2} & Host servidor de dominio y servicios & \texttt{dc1} (Debian 12) \\
+    B & \texttt{192.168.0.3} & Monitoreo de infraestructura & \texttt{zabbix} (Debian 13) \\
+    C & \texttt{.60}--\texttt{.99} & Puestos operativos y cajas & Terminales Linux Kiosk \\
+    D & \texttt{.50}--\texttt{.52} & Administraci\'on de TI & \texttt{pc-joaquin}, \texttt{pc-david}, \texttt{pc-nicolas} \\
+    D & \texttt{.100}--\texttt{.199} & Administraci\'on y gerencia (din\'amico) & Estaciones Windows 10/11 \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+El servicio DHCP del router (Zona A) se desactiva de forma deliberada para
+que el servidor Kea sea el \'unico emisor de ofertas de la red, evitando as\'\i
+conflicto de doble respuesta \textsc{Discover} \cite{rfc2131}.
+
+\subsection{Servidores y roles}
+
+La tabla \ref{tab:servidores} detalla cada servidor, su direcci\'on y el rol
+que ejerce dentro de la arquitectura.
+
+\begin{table}[H]
+\centering
+\caption{Servidores, direcciones y roles en la arquitectura final}
+\label{tab:servidores}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{2.2cm}p{3.2cm}p{2.4cm}p{5.8cm}@{}}
+    \toprule
+    \textbf{Host} & \textbf{IP} & \textbf{SO} & \textbf{Rol} \\
+    \midrule
+    \texttt{dc1} & \texttt{192.168.0.2} & Debian 12 & Controlador de dominio Samba 4, DNS, NTP, firewall, servicios en Docker \\
+    \texttt{zabbix} & \texttt{192.168.0.3} & Debian 13 & Servidor de monitoreo Zabbix (server, web y PostgreSQL) \\
+    Router & \texttt{192.168.0.1} & Firmware & Puerta de enlace, NAT a Internet y segmentaci\'on \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+El host \texttt{dc1} concentra una arquitectura de tres capas de
+procesamiento. La capa nativa ejecuta el controlador de dominio Samba 4, que
+integra en un \'unico daemon los servicios de LDAP, Kerberos, DNS y SMB
+\cite{sambateam2024}, junto con \texttt{chrony} para la sincronizaci\'on
+horaria --imprescindible para Kerberos, que rechaza los tickets con un
+desfase de reloj superior a cinco minutos--, el firewall \texttt{nftables} y el servicio
+\texttt{sshd} endurecido. La segunda capa corresponde a los contenedores
+Docker, donde residen el proxy inverso Nginx, el servidor DHCP Kea en modo
+de red \texttt{host}, la base de datos PostgreSQL, el servicio de correo
+Postfix y Dovecot, el gestor de impresi\'on CUPS y el panel de gesti\'on
+Portainer. La tercera capa constituye el servidor \texttt{zabbix}, que
+opera como m\'aquina independiente y es alcanzable \'unicamente a trav\'es
+del proxy inverso.
+
+La decisi\'on de ejecutar el controlador de dominio de forma nativa, y no
+contenedorizado, responde a la fragilidad de Samba frente al aislamiento de
+redes y sistemas de archivos en contenedores \cite{sambateam2024}.
+
+\subsection{Flujo de comunicaci\'on entre servicios}
+
+La figura \ref{fig:arquitectura-zonas} representa la topolog\'ia general de
+la red y las relaciones entre el per\'imeter, el host de servicios, el
+servidor de monitoreo y las zonas de puestos de trabajo.
+
+\capturaAPA{fig:arquitectura-zonas}{Diagrama de la arquitectura de red segmentada por zonas y roles de acceso}{captura-arquitectura-red.jpeg}{Diagrama de la topolog\'ia general de la red del banco Sudoers, con la segmentaci\'on en zonas A (per\'imeter), B (servidores \texttt{dc1} y \texttt{zabbix}), C (puestos de cajas) y D (administraci\'on y gerencia), junto con los flujos de comunicaci\'on entre ellas.}
+
+La matriz de la tabla \ref{tab:matriz-acceso} formaliza el flujo anterior:
+para cada servicio se indican el puerto y protocolo expuestos, la capa de
+ejecici\'on y el nivel de acceso permitido.
+
+\begin{table}[H]
+\centering
+\caption{Matriz de acceso y visibilidad de los servicios}
+\label{tab:matriz-acceso}
+\contenidoConFuente{%
+  \begin{tablaAPA}
+    \begin{tabular}{@{}p{4.9cm}p{2.4cm}p{2.1cm}p{4.5cm}@{}}
+    \toprule
+    \textbf{Servicio} & \textbf{Puerto} & \textbf{Capa} & \textbf{Acceso} \\
+    \midrule
+    Samba DNS / LDAP / Kerberos & \texttt{53}, \texttt{88}, \texttt{389} & Nativa & Todo el dominio (validaci\'on) \\
+    Recursos compartidos SMB & \texttt{445/tcp} & Nativa & Filtrado por grupos de usuario AD \\
+    SSH / nftables & \texttt{22/tcp} & Nativa & Exclusivo de administradores TI (\texttt{.50}--\texttt{.52}) \\
+    Nginx proxy inverso & \texttt{80}, \texttt{443/tcp} & Docker & LAN operativa y gerencia \\
+    Postfix / Dovecot & \texttt{25}, \texttt{143}, \texttt{587} & Docker & Usuarios autenticados del dominio \\
+    Kea DHCP & \texttt{67/udp} & Docker (host) & Difusi\'on de toda la LAN \\
+    PostgreSQL & \texttt{5432/tcp} & Docker & Aislado (solo Core Bancario) \\
+    CUPS & \texttt{631/tcp} & Docker & Puestos de cajas y administraci\'on \\
+    Portainer Web & \texttt{9443/tcp} & Docker & Exclusivo de administradores TI \\
+    Zabbix (agente pasivo) & \texttt{10050/tcp} & Servidor \texttt{zabbix} & Clientes y host \\
+    \bottomrule
+    \end{tabular}
+  \end{tablaAPA}%
+}{Elaboraci\'on propia.}
+\end{table}
+
+\subsection{Justificaci\'on t\'ecnica del dise\~no}
+
+El dise\~no se apoya en cinco decisiones t\'ecnicas fundamentadas.
+
+\begin{enumerate}
+  \item \textbf{Segmentaci\'on por roles.} Dividir la red en zonas con
+        pol\'iticas de filtrado distintas reduce la superficie de ataque:
+        los puestos de cajas no requieren acceso al panel de administraci\'on
+        de contenedores ni a la consola del servidor de monitoreo.
+  \item \textbf{Seguridad por defecto.} La pol\'itica \textsc{drop} por
+        defecto de \texttt{nftables} y la restricci\'n del puerto
+        \texttt{22/tcp} \'unicamente a los rangos de administraci\'on
+        implementan el principio de m\'inimo privilegio
+        \cite{stewart2017}.
+  \item \textbf{Identidad centralizada.} Delegar la autenticaci\'on en
+        Samba 4 AD DC sobre Kerberos y LDAP permite una gesti\'on \'unica de
+        usuarios, grupos y permisos, en lugar de credenciales dispersas por
+        cada servicio \cite{rfc4120, rfc4511}.
+  \item \textbf{Aislamiento de datos sensibles.} PostgreSQL queda
+        confinado a la red interna de Docker y el servicio de monitoreo se
+        publica \'unicamente a trav\'es del proxy inverso, de modo que
+        ninguno es alcanzable de forma directa desde la LAN.
+  \item \textbf{Un \'unico emisor de direcciones.} Desactivar el DHCP del
+        router y centralizar la asignaci\'on en Kea elimina la ambig\"uedad
+        en la obtenci\'on de la direcci\'on, puerta de enlace y servidor DNS
+        por parte de los clientes \cite{rfc2131, keaDocs}.
+\end{enumerate}
+
+Estas decisiones culminan, en conjunto, en una arquitectura que puede escalar
+con nuevos servicios sobre la misma base de segmentaci\'on y controles de
+acceso, principios que se verifican de forma pr\'actica en el cap\'itulo de
+desarrollo t\'ecnico.

@@ -1,0 +1,127 @@
+% ============================================================================
+%  6. CONCLUSIONES
+%  ----------------------------------------------------------------------------
+%  Cierra el informe cubriendo las cuatro actividades del proyecto.
+% ============================================================================
+
+\section{Conclusiones}
+
+\subsection{Resultados obtenidos}
+
+El objetivo central del trabajo se cumpli\'o: se implement\'o y valid\'o una
+arquitectura de red empresarial funcional y segura sobre GNU/Linux, en la
+que los servicios operan de forma integrada y no como piezas aisladas.
+
+En el \'ambito del correo electr\'onico, el servicio qued\'o operativo con
+Postfix como agente de transferencia y Dovecot como servidor de acceso a
+buzones, con autenticaci\'on \textsc{sasl} y protecci\'on \textsc{starttls}.
+El env\'io autenticado, la recepci\'n en formato \texttt{maildir} y el acceso
+desde cliente de escritorio se verificaron satisfactory. En el \'ambito de
+archivos, los tres protocolos operan sobre un mismo directorio compartido,
+de modo que un archivo creado a trav\'es de \textsc{smb}, \textsc{nfs} o
+\textsc{http} es inmediatamente accesible desde los otros, lo que evita la
+duplicaci\'on de la informaci\'on almacenada.
+
+La asignaci\'on din\'amica de direcciones qued\'o centralizada en el servidor
+\textsc{kea}, tras resolverse el conflicto con el servicio \textsc{dhcp} del
+router. Los clientes reciben su direcci\'on, la puerta de enlace y el
+servidor \textsc{dns} sin intervenci\'on manual, y las direcciones de
+infraestructura permanecen estables mediante reservas. El servidor web con
+proxy inverso public\'o los servicios internos por nombre, con
+redirecci\'on autom\'atica de \textsc{http} a \textsc{https} y una autoridad
+de certificaci\'on interna que cubre todos los subdominios.
+
+El despliegue del controlador de dominio Samba 4 fue el hito que permiti\'o
+consolidar el resto. Centraliz\'o la identidad, la autenticaci\'on
+\textsc{kerberos} y el \textsc{ldap}, y aport\'o el \textsc{dns} autoritativo
+del dominio con sus registros de descubrimiento \textsc{srv}. Gracias a
+ello, un equipo cliente se une al dominio, resuelve los nombres internos y
+accede a los servicios publicados, todo ello a trav\'es de una \'unica
+puerta de entrada cifrada, sin configurar direcciones ni puertos en el
+cliente.
+
+\subsection{Importancia del proyecto en la formaci\'on profesional}
+
+El proyecto result\'o especialmente formativo porque no se limit\'o a la
+configuraci\'on aislada de herramientas, sino que exigi\'o comprender c\'omo
+se relacionan los servicios entre s\'i. Un error en la configuraci\'on del
+servidor de nombres se manifiesta como un fallo aparentemente ajeno, como
+la imposibilidad de autenticar un usuario en el correo; un par\'ametro
+mal definido en \textsc{dhcp} impide a los clientes alcanzar al servidor que
+precisamente les fue entregado. Comprender esas relaciones es lo que
+distingue a un administrador de red de quien simplemente ejecuta
+instrucciones.
+
+El entorno de trabajo result\'o especialmente valioso por ser
+realista. Las restricciones encontradas --un \textsc{dhcp} activo en el
+router que compet\'ia con el del proyecto, la necesidad de sincronizar el
+reloj para que \textsc{kerberos} aceptara los tickets, la confianza de la
+autoridad de certificaci\'on en cada estaci\'on-- no se deducen de la
+teor\'ia: se descubren diagnosticando. Ese constituye el principal
+aprendizaje del ejercicio profesional.
+
+\subsection{Aprendizajes adquiridos}
+
+Se adquirieron competencias en cuatro \'ambitos. En el dise\~no de redes,
+se aprendi\'o a segmentar una red plana en zonas con pol\'iticas de acceso
+distintas, y a justificar cada decisi\'on t\'ecnica con argumentos en lugar
+de aplicarla por costumbre.
+
+En la administraci\'on de servicios, se aprendi\'o a configurar correo
+electr\'onico, compartici\'on de archivos, asignaci\'on din\'amica de
+direcciones, publicaci\'on web y un directorio corporativo,
+comprendiendo el rol espec\'ifico que desempeña cada uno dentro del conjunto y
+las dependencias que los unen. Se comprendi\'o tambi\'en la diferencia
+pr\'actica entre ejecutar un servicio de forma nativa y desplegarlo en un
+contenedor, y por qu\'e el controlador de dominio deb\'ia ejecutarse de la
+primera forma \cite{sambateam2024}.
+
+En el \'ambito de la seguridad, se aprendi\'o a aplicar la pol\'itica de
+rechazo por defecto, a restringir el acceso administrativo a rangos de
+direcciones determinados, a aislar los servicios sensibles tras un \'unico
+proxy y a confiar el tr\'afico mediante \textsc{tls} con una autoridad
+interna \cite{stewart2017}.
+
+En el diagnostico, el principal aprendizaje fue el m\'etodo: leer el
+registro del servicio, contrastar la configuraci\'on efectiva con la
+esperada y verificar con la herramienta de l\'inea de comandos antes de
+modificar nada. Esta rutina result\'o m\'as valiosa que el conocimiento
+memorizado de una opci\'n concreta, porque se transfiere a cualquier
+servicio que no se haya visto antes \cite{salz2020}.
+
+\subsection{Recomendaciones para futuras implementaciones}
+
+A partir de la experiencia desarrollada se formulan las siguientes
+recomendaciones.
+
+\begin{itemize}
+  \item \textbf{Automatizar el aprovisionamiento.} Aunque la
+        instalaci\'on se realiz\'o de forma manual, el car\'acter
+        declarativo de \textsc{samba-tool} y de los archivos de configuraci\'on
+        en \textsc{json} de \textsc{kea} permite escribir guiones que
+        reconstruyan el dominio completo de forma idempotente, lo que
+        resulta indispensable ante la necesidad de recuperar un servidor
+        tras un fallo.
+  \item \textbf{Automatizar la renovaci\'on de certificados.} El
+        certificado \textit{wildcard} generado tiene una vigencia
+        acotada. Un proceso programado que lo reemita y lo recargue
+        evitar\'ia las interrupciones de servicio por expiraci\'on.
+  \item \textbf{Centralizar los registros.} La resoluci\'on de nombres
+        externa depende hoy de un \textit{forwarder} hacia el router, un
+        punto \'unico de falla. Instalar un \textsc{dns} recursivo local o
+        configurar un \textsc{dns} de respaldo eliminar\'ia esa
+        dependencia.
+  \item \textbf{Implementar el monitoreo de forma efectiva.} El servidor de
+        monitoreo est\'a desplegado, pero a\'un no se han configurado
+        alertas que notifiquen la ca\'ida de un servicio. Conectar las
+        alertas con el servidor de correo cerrar\'ia el ciclo de
+        notificaci\'on.
+  \item \textbf{Definir y probar la copia de seguridad.} El proceso de
+        respaldo debe especificar qu\'e se copia, con qu\'e frecuencia y c\'omo
+        se verifica la restauraci\'on. Una copia nunca comprobada no
+        constituye un respaldo.
+  \item \textbf{Documentar cada cambio.} Mantener un registro de las
+        modificaciones aplicadas a la configuraci\'on permiti\'o resolver
+        los problemas del cap\'itulo anterior. Convertir esa pr\'actica en
+        un procedimiento formalizado es el siguiente paso natural.
+\end{itemize}

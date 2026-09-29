@@ -1,0 +1,131 @@
+% ============================================================================
+%  5. DESAF\'IOS DE IMPLEMENTACI\'ON Y SOLUCIONES APLICADAS
+%  ----------------------------------------------------------------------------
+%  Los desafíos descritos corresponden a dificultades reales
+%  documentadas durante la ejecución de las actividades a4, a5 y a7.
+% ============================================================================
+
+\section{Desaf\'ios de implementaci\'on y soluciones aplicadas}
+
+La puesta en marcha de la infraestructura plante\'o dificultades reales
+que no se anticipate durante la planificaci\'on inicial. Este cap\'itulo
+recoge los cinco desaf\'ios m\'as significativos, describe su sintomatizaci\'on
+y expone la soluci\'n adoptada por el grupo, incluyendo las verificaciones
+que permitieron confirmar la resoluci\'on.
+
+\subsection{Conflicto entre dos servidores \textsc{dhcp} activos}
+
+El primer obstacle se manifest\'o al conectar el primer cliente a la red:
+obten\'ia una direcci\'n de \texttt{192.168.0.1}, correspondiente al router,
+en lugar de recibirla del servidor Kea del proyecto. La causa era que el
+router ten\'ia su propio servicio \textsc{dhcp} activo, de modo que tanto
+\'este como Kea respond\'ian a los paquetes \textsc{discover} con ofertas
+distintas. El cliente aceptaba la primera oferta recibida, lo que
+provocaba una configuraci\'n de red inconsistente y, en consecuencia,
+direcciones duplicadas entre equipos \cite{rfc2131}.
+
+Para resolverlo se accedi\'o a la interfaz de administraci\'on del router y
+se deshabilit\'o el servicio \textsc{dhcp} en la \textsc{lan}, manteniendo
+\'unicamente la configuraci\'on de la puerta de enlace y las reglas de
+red. La figura \ref{fig:desafio-dhcp} documenta el estado final de dicho
+par\'ametro.
+
+\capturaAPA{fig:desafio-dhcp}{Desactivaci\'on del servicio \textsc{dhcp} del router para eliminar el conflicto con Kea}{captura-router-disable.png}{Captura de pantalla de la configuraci\'on \textsc{lan} del router TP-Link donde la opci\'on \textsc{dhcp server} figura en estado deshabilitado, resolviendo la Respuesta duplicada de los dos servidores \textsc{dhcp}.}
+
+\subsection{Verificaci\'on previa de la conectividad del cliente}
+
+Tras la desactivaci\'on del \textsc{dhcp} del router se comprob\'o que
+ning\'un servicio de la red hubiera quedado inaccesible como efecto
+secundario. Esta verificaci\'on result\'o relevante porque el router
+concentra la puerta de enlace y la salida a Internet: si alg\'un equipo
+hab\'ia quedado sin ruta por defecto, el cambio habr\'ia afectado a todos
+los equipos que dependieran de ella. La figura \ref{fig:desafio-ping}
+muestra la verificaci\'on realizada.
+
+\capturaAPA{fig:desafio-ping}{Verificaci\'on de la conectividad del cliente hacia la puerta de enlace tras el cambio}{captura-ping-router-gateway.png}{Captura de pantalla de la terminal del cliente con las respuestas de \texttt{ping} hacia la puerta de enlace \texttt{192.168.0.1}, confirmando que el equipo mantiene su conectividad tras la intervenci\'on.}
+
+\subsection{Resoluci\'on err\'onea del \textit{hostname} a \textit{loopback}}
+
+Al instalar el controlador de dominio \texttt{dc1} se observ\'o que las
+operaciones de uni\'on al dominio fallaban con errores de acceso al
+servidor Kerberos. El origen estaba en la resoluci\'on del nombre del host:
+si \texttt{dc1} se resuelve a \texttt{127.0.0.1}, el servidor se comunica
+consigo mismo a trav\'es del \textit{loopback} y los clientes de la red
+nunca alcanzan al controlador de dominio \cite{sambateam2024}.
+
+La soluci\'n consisti\'o en garantizar que el nombre \texttt{dc1} resuelva a
+la direcci\'n \texttt{192.168.0.2/24} de la interfaz cableada \texttt{eno1}
+y registrar esa correspondencia de forma explícita en \texttt{/etc/hosts},
+de modo que la resoluci\'o local tenga prioridad sobre cualquier otra
+entrada.
+
+\capturaAPA{fig:desafio-loopback}{Correspondencia entre el nombre del host y su direcci\'n de red en \texttt{/etc/hosts}}{captura-ip-fija.png}{Captura de pantalla de la salida de \texttt{ip -4 a show eno1} junto con la entrada de \texttt{/etc/hosts} que asocia \texttt{dc1.sudoers.lan} a la direcci\'n de la red local y no al \textit{loopback}.}
+
+\subsection{Desfase de reloj y autenticaci\'on Kerberos}
+
+Las lecturas de tickets de Kerberos fallaban de forma intermitente en los
+clientes, con el error de versi\'on de ticket incorrecta. La causa no era la
+configuraci\'on del dominio sino el reloj del sistema: Kerberos exige que
+el desfase entre el cliente y el servidor sea inferior a cinco minutos
+para aceptar el ticket \cite{rfc4120}.
+
+La soluci\'on fue instalar y habilitar el servicio \texttt{chrony} en el
+host del controlador de dominio, de modo que la hora del servidor se
+sincronizara de forma continua con los servidores de referencia. Tras
+activar la sincronizaci\'on, la obtenci\'on de tickets se complet\'o de
+forma satisfactoria.
+
+\capturaAPA{fig:desafio-kerberos}{Servicios de sincronizaci\'on horaria habilitados en el host del dominio}{captura-servicios-host.png}{Captura de pantalla de la salida de \texttt{systemctl is-enabled} mostrando \texttt{chrony} junto con \texttt{samba-ad-dc}, \texttt{nftables} y \texttt{docker} habilitados en el arranque del servidor.}
+
+\subsection{Concesi\'on \textsc{dhcp} heredada del router}
+
+Tras resolver el conflicto de servidores \textsc{dhcp}, los equipos que ya
+ten\'ian una direcci\'n asignada por el router la conservaban, ya que la
+concesi\'on anterior segu\'ia siendo v\'alida. Estos clientes no
+actualizaban su configuraci\'on de red y, en consecuencia, persist\'an sin
+poder resolver los nombres del dominio \cite{droms1997}.
+
+La soluci\'on consisti\'o en forzar la renovaci\'on de la concesion desde
+el cliente, de modo que \'este la solicite al servidor Kea y reciba una
+direcci\'n dentro del \'ambito din\'amico junto con la puerta de enlace y el
+servidor \textsc{dns} correctos. Esta renovaci\'n tambi\'n sirvi\'o como
+prueba de que el servidor \textsc{dhcp} del proyecto asum\'ia \'unicamente
+la totalidad de las concesiones de la red.
+
+\capturaAPA{fig:desafio-dhclient}{Renovaci\'on forzada de la concesion \textsc{dhcp} en el cliente}{captura-dhclient.png}{Captura de pantalla de la terminal del cliente mostrando la renovaci\'on de la direcci\'n y la asignaci\'n de una direcci\'n dentro del \'ambito din\'amico definido por Kea.}
+
+\subsection{Servicios que requieren red \textit{host} en contenedores}
+
+Por \'ultimo, el despliegue del servicio \textsc{dhcp} dentro de Docker
+present\'o un inconveniente de conectividad: el protocolo utiliza la
+direcci\'on de difusi\'on por \textsc{broadcast} en el puerto
+\texttt{67/udp}, y los contenedores con red \textit{bridge} no reenv\'ian
+ese tipo de tr\'afico. Como resultado, los clientes no recib\'ian oferta
+alguna.
+
+La soluci\'on fue configurar el contenedor con la opci\'n
+\texttt{network\_mode: host}, que descarta el aislamiento de red y permite
+al servicio escuchar directamente en la interfaz del host. Esta decisi\'on
+se tom\'o de forma consciente, asumiendo que el servicio queda expuesto a
+la \textsc{lan} y que por ello debe protegerse mediante las reglas de
+firewall del host \cite{stewart2017}.
+
+\subsection{Advertencia de seguridad del navegador por autoridad de certificaci\'on no reconocida}
+
+Al publicar el portal por \textsc{https} con el certificado
+\textit{wildcard} \texttt{*.sudoers.lan}, los navegadores de los clientes
+mostraban una advertencia de que la conexi\'on no era privada. El servidor
+respond\'a correctamente y el cifrado es real, pero el certificado lo firma
+una autoridad de certificaci\'on interna generada por el propio grupo y, por
+tanto, no figura en la lista de autoridades en las que el navegador conf\'ia
+por defecto. Para el usuario esto se manifiesta como un riesgo inexistente
+que induce a ignorar la advertencia.
+
+La soluci\'on consisti\'o en distribuir el certificado de la autoridad
+(\texttt{ca.crt}) e instalarlo como entidad de confianza en el sistema de
+cada estaci\'on. Una vez instalada, el candado aparece en la barra de
+direcciones sin advertencias y el cifrado queda validado de extremo a
+extremo. La figura \ref{fig:desafio-tls} documenta el acceso al portal una
+vez resuelta la cadena de confianza.
+
+\capturaAPA{fig:desafio-tls}{Acceso al portal tras instalar la autoridad de certificaci\'on interna en el cliente}{captura-cliente-web.png}{Captura de pantalla del navegador de un cliente mostrando el portal de la intranet con el candado de confianza de la autoridad interna, sin la advertencia de certificado no reconocido.}

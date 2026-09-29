@@ -1,0 +1,167 @@
+% ============================================================================
+%  1. INTRODUCCI\'ON
+%  ----------------------------------------------------------------------------
+%  Contextualiza el conjunto de las actividades a4 (correo y archivos),
+%  a5 (DHCP y Web), a7 (Samba 4 AD DC) y a8 (DNS del dominio y Web integrado).
+% ============================================================================
+
+\section{Introducci\'on}
+
+En toda organizaci\'on, la infraestructura de red constituye el pilar
+sobre el cual se sustentan las operaciones diarias. Un banco, con
+independencia de su tama\~no, depende de que sus empleados puedan resolver
+los nombres de los servicios que utilizan, de que las estaciones obtengan
+autom\'aticamente su configuraci\'on de red al conectarse y de que los
+sistemas internos resulten inaccesibles desde el exterior sin una
+autorizaci\'on expresa. Estos requisitos, que en el uso cotidiano pasan
+desapercibidos, se traducen t\'ecnicamente en un conjunto de servicios
+fundamentales que deben operar de forma coordinada y segura
+\cite{tanenbaum2017}.
+
+La resoluci\'on de nombres de dominio (\textsc{dns}) constituye la pieza
+central de esa coordinaci\'on. El protocolo traduce los nombres que los
+usuarios recuerdan, como \texttt{web.sudoers.lan}, en las direcciones
+\texttt{ip} que las m\'aquinas entienden \cite{rfc1034, rfc1035}. Sobre esa
+base se articulan el resto de los servicios: el correo electr\'onico
+necesita localizar al servidor de entrega a trav\'es de registros
+\textsc{mx} \cite{postel1982, criden2005}; la asignaci\'on din\'amica de
+direcciones evita configurar cada estaci\'n a mano \cite{rfc2131, droms1997};
+y la autenticaci\'on de los usuarios se apoya en un directorio que debe ser
+localizada de forma inequ\'ivoca \cite{rfc4511, rfc4120}.
+
+\subsection{La importancia de la administraci\'on de servidores GNU/Linux}
+
+Las organizaciones actuales operan su infraestructura sobre sistemas
+libres, y no por una cuesti\'on de preferencia tecnol\'ogica sino por
+razones operativas y econ\'omicas bien documentadas. Un sistema GNU/Linux
+ofrece un modelo de seguridad robusto basado en la separaci\'on de
+privilegios, el control de acceso discrecional y la trazabilidad de las
+operaciones, principios que se aplican de forma sistem\'atica en la
+administraci\'on de servidores \cite{stewart2017}. Adem\'as, la
+disponibilidad del c\'odigo fuente permite auditar el comportamiento de los
+servicios criticales y corregir vulnerabilidades sin depender de los
+plazos del proveedor.
+
+Administrar estos servidores exige un conjunto amplio de competencias:
+configurar servicios de red, gestionar usuarios y permisos, resolver
+incidencias y aplicar medidas de securizaci\'on que reduzcan la
+superficie de ataque \cite{nemeth2017}. El presente trabajo final
+recoge justamente ese conjunto de competencias aplicado a un escenario
+empresarial concreto.
+
+\subsection{Antecedentes y contexto del proyecto}
+
+El proyecto se desarrollo de manera incremental a lo largo de las
+actividades del curso, y cada etapa aport\'o una pieza distinta a la
+arquitectura final. La primera etapa implement\'o el servicio de correo
+electr\'onico con \textsc{postfix} y \textsc{dovecot}, junto con un servidor
+de archivos multi-protocolo que combina \textsc{smb}, \textsc{nfs} y
+\textsc{http} sobre un mismo directorio compartido. La segunda etapa
+incorpor\'o el servidor de asignaci\'on din\'amica de direcciones con
+\textsc{kea} y un servidor web basado en \textsc{nginx} que act\'ua como
+\textit{proxy inverso} \cite{keaDocs, nginxDocs}. La tercera etapa
+despleg\'o el controlador de dominio \textsc{samba 4} \textsc{active
+directory}, que centraliza la identidad, la autenticaci\'on Kerberos y la
+compartici\'on de archivos \cite{sambateam2024, msft_activedirectory}. La
+cuarta y \'ultima etapa consolid\'o el \textsc{dns} autoritativo del dominio
+servido por el propio controlador y la publicaci\'on de los servicios por
+nombre a trav\'es del proxy, con cifrado \textsc{https} y una autoridad de
+certificaci\'on interna \cite{iscbind9, opensslDocs}.
+
+\subsection{Problem\'atica}
+
+La organizaci\'on se apoya en un \'unico servidor Debian que
+concentra la identidad, los archivos, el correo y la publicaci\'on web. En
+ese escenario se plantearon tres carencias que limitaban la operaci\'on:
+
+\begin{itemize}
+  \item \textbf{Resoluci\'on de nombres incompleta:} sin un servidor
+        \textsc{dns} propio, cada cliente deb\'ia memorizar direcciones
+        \textsc{ip} o depender de archivos \texttt{/etc/hosts} dispersos,
+        esquema que no escala y que impide que un mismo nombre se resuelva
+        de forma consistente en toda la red.
+  \item \textbf{Asignaci\'on de direcciones manual:} configurar la red de
+        cada estaci\'n de forma individual consume tiempo y es propenso a
+        errores, adem\'s de impedir la gesti\'on centralizada de los
+        par\'ametros de la red.
+  \item \textbf{Ausencia de una puerta \'unica y segura:} sin un servidor web
+        que concentre la publicaci\'on de los servicios, cada aplicaci\'on
+        deber\'ia exponer su propio puerto, sin una capa de cifrado
+        unificada ni un punto \'unico de control y de auditor\'ia.
+\end{itemize}
+
+\subsection{Prop\'osito del trabajo final}
+
+El prop\'osito de este trabajo es demostrar la capacidad de dise\~nar,
+implementar y validar una arquitectura de red empresarial completa sobre
+GNU/Linux, integrando los servicios de directorio, asignaci\'on de direcciones,
+resoluci\'on de nombres, publicaci\'on web, correo electr\'onico y
+archivos, con medidas de securizaci\'on aplicadas en cada uno de ellos
+\cite{debianReference, hertzog2020}. El objetivo no es simplemente que los
+servicios funcionen, sino que operen de forma integrada: que un cliente
+reciba su configuraci\'on por \textsc{dhcp}, resuelva los nombres contra el
+controlador de dominio, se autentique mediante \textsc{kerberos} y
+acceda a los servicios publicados por nombre a trav\'es de un \'unico
+punto de entrada cifrado.
+
+\subsection{Marco te\'orico}
+
+\subsubsection{El sistema de nombres de dominio}
+
+El \textsc{dns} es un servicio distribuido y jer\'arquico que traduce
+nombres de dominio a direcciones \textsc{ip} \cite{rfc1034}. En un dominio
+de \textsc{active directory} no es un accesorio, sino el transporte del
+directorio: los clientes lo consultan para descubrir d\'onde reside el
+servidor \textsc{ldap}, el \textsc{kerberos} o el propio controlador
+mediante registros \textsc{srv} \cite{rfc2782}. Por esta raz\'on, un
+controlador de dominio debe ser autoritativo de su zona
+\cite{msft_activedirectory}. Los registros empleados en el proyecto son
+los de tipo \textsc{a}, que asocian un nombre a una direcci\'on; los
+\textsc{srv}, que indican qu\'e servidor atiende qu\'e servicio en qu\'e
+puerto; y los registros \textsc{ns} y \textsc{soa}, que declaran la
+autoridad y la vigencia de la zona.
+
+\subsubsection{La asignaci\'on din\'amica de direcciones}
+
+El protocolo \textsc{dhcp} permite que un servidor asigne direcciones
+\textsc{ip} de forma autom\'atica a los clientes que se conectan
+\cite{rfc2131}. El proceso sigue una secuencia de cuatro mensajes en la que
+el cliente descubre, ofrece, solicita y confirma una direcci\'on. Adem\'as
+de la direcci\'on, el servidor entrega par\'ametros de configuraci\'on
+como la m\'ascara de subred, la puerta de enlace y el servidor
+\textsc{dns}, lo que evita la intervenci\'on manual \cite{droms1997}. El
+servidor \textsc{kea} se escogi\'o por su soporte activo y su
+configuraci\'on basada en \textsc{json} \cite{keaDocs}.
+
+\subsubsection{El servidor web y el proxy inverso}
+
+Un servidor web atiende peticiones \textsc{http} y entrega documentos a
+los navegadores. En el proyecto se emplea \textsc{nginx} con una doble
+funci\'on: servir el contenido del portal y actuar como \textit{proxy
+inverso}, es decir, recibir las peticiones y reenviarlas al servicio
+interno correspondiente seg\'un el nombre solicitado \cite{nginxDocs}. El
+proxy termina adem\'as la conexi\'on \textsc{tls}, de modo que el
+cifrado se aplica en el punto \'unico de entrada mientras que las
+comunicaciones internas se realizan en claro.
+
+\subsubsection{La identidad centralizada}
+
+El \textsc{active directory} centraliza la gesti\'on de usuarios, grupos y
+permisos sobre la base de \textsc{ldap} \cite{rfc4511}, y delega la
+autenticaci\'on en \textsc{kerberos}, cuyo protocolo de tickets evita
+transmitir la clave del usuario en cada petici\'on \cite{rfc4120}. Esta
+arquitectura es la que permite, en lugar de credenciales dispersas por
+cada servicio, una gesti\'on \'unica y coherente de la seguridad
+\cite{sambateam2024}.
+
+\subsection{Estructura del documento}
+
+El presente informe se organiza en seis cap\'itulos. El cap\'itulo
+siguiente enuncia los objetivos del trabajo y su alcance. El tercero
+documenta el diagrama arquitect\'onico final, con la segmentaci\'on de la
+red, los roles de cada servidor y la justificaci\'on del dise\~no. El
+cuarto desarrolla t\'ecnicamente cada servicio desplegado, siguiendo el
+orden en que se implementaron. El quinto expone los desaf\'ios
+encontrados durante la ejecuci\'on y las soluciones aplicadas. El sexto
+expone las conclusiones, los aprendizajes y las recomendaciones para
+futuras implementaciones.
