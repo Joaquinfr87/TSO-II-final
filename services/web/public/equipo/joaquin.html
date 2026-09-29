@@ -4,75 +4,232 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Joaquin — Equipo sudoers.lan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0b0e14; --surface: #12161f; --surface2: #181d2a; --border: #232a3a;
-            --text: #e8ecf4; --muted: #8b94a8; --accent: #5ea0ff; --accent2: #7c5cff;
-            --ok: #3fb968; --mono: ui-monospace,'SF Mono','Cascadia Code',monospace;
+            --green: #0e5e42;
+            --green-soft: #f2f6f4;
+            --ink: #111815;
+            --muted: #6b7671;
+            --line: #e4e8e6;
+            --bg: #ffffff;
+            --bg-alt: #f7f9f8;
+            --bg-facts: #fafcfb;
+            --ok: #1a7f5a;
+            --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+            --sans: 'Inter', system-ui, sans-serif;
+            --mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.55; }
-        a { color: var(--accent); text-decoration: none; }
-        header { border-bottom: 1px solid var(--border); padding: 0.9rem 2rem; display: flex; align-items: center; justify-content: space-between; }
-        .brand { font-weight: 700; }
-        .brand span { color: var(--accent); }
-        header a.back { color: var(--muted); font-size: 0.88rem; }
-        header a.back:hover { color: var(--text); }
-        .wrap { max-width: 860px; margin: 0 auto; padding: 3rem 2rem; }
-        .headline { display: flex; gap: 1.5rem; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; }
-        .avatar { width: 84px; height: 84px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; flex: 0 0 auto; border: 2px solid var(--border); }
-        .avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .headline h1 { font-size: 1.9rem; letter-spacing: -0.02em; }
-        .headline .role { color: var(--muted); }
-        .headline .role b { color: var(--text); }
-        .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
-        .badge { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); border: 1px solid var(--border); background: var(--surface); padding: 0.3rem 0.75rem; border-radius: 999px; }
-        h2 { font-size: 1.05rem; margin: 2rem 0 0.8rem; letter-spacing: -0.01em; }
-        .box { background: var(--surface); border: 1px solid var(--border); border-radius: 0.9rem; padding: 1.2rem 1.4rem; font-family: var(--mono); font-size: 0.84rem; color: var(--muted); }
-        table { width: 100%; border-collapse: collapse; }
-        td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-        tr:last-child td { border-bottom: none; }
-        td:first-child { color: var(--text); font-weight: 600; width: 32%; white-space: nowrap; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+        a { color: var(--green); }
+
+        header {
+            border-bottom: 1px solid var(--line);
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(8px);
+            z-index: 5;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            font-family: var(--serif);
+            font-weight: 600;
+            font-size: 1.12rem;
+            color: var(--ink);
+            text-decoration: none;
+        }
+        .brand .mark { width: 26px; height: 26px; border-radius: 4px; background: var(--green); display: grid; place-items: center; flex: 0 0 auto; }
+        header a.back {
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-decoration: none;
+        }
+        header a.back:hover { color: var(--green); }
+
+        .wrap { max-width: 860px; margin: 0 auto; padding: 3.5rem 2rem 4rem; }
+
+        .profile { padding-bottom: 2.2rem; border-bottom: 1px solid var(--line); }
+        .eyebrow {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--green);
+            margin-bottom: 1.2rem;
+        }
+        .profile .who { display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; }
+        .avatar {
+            width: 76px; height: 76px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            background: var(--bg-alt);
+            flex: 0 0 auto;
+        }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .profile h1 { font-family: var(--serif); font-size: 2rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+        .profile .role { color: var(--muted); font-size: 0.92rem; }
+        .profile .role b { color: var(--ink); font-weight: 600; }
+
+        .facts {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 1.8rem;
+            padding: 1.3rem 1.5rem;
+            background: var(--bg-facts);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+        }
+        .facts .k {
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.35rem;
+        }
+        .facts .v { font-family: var(--mono); font-size: 0.84rem; color: var(--ink); }
+
+        .block { margin-top: 2.6rem; }
+        .block h2 {
+            font-family: var(--serif);
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            margin-bottom: 1rem;
+            color: var(--green);
+        }
+
+        .table { border-top: 1px solid var(--ink); border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: #fff; }
+        .table .row {
+            display: grid;
+            grid-template-columns: 210px 1fr;
+            gap: 1.25rem;
+            padding: 0.8rem 1.3rem;
+            border-bottom: 1px solid var(--line);
+            font-size: 0.87rem;
+            align-items: baseline;
+        }
+        .table .row .k {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .table .row .v { font-family: var(--mono); font-size: 0.84rem; color: var(--ink); }
         .pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-        .pill { font-size: 0.74rem; font-family: var(--mono); padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--accent); }
-        ul.tasks { margin: 0.6rem 0 0 1.2rem; color: var(--muted); font-size: 0.92rem; }
-        ul.tasks li { margin: 0.35rem 0; }
-        footer { border-top: 1px solid var(--border); padding: 1.2rem 2rem; color: var(--muted); font-size: 0.8rem; }
+        .pill {
+            font-family: var(--mono);
+            font-size: 0.74rem;
+            padding: 0.15rem 0.55rem;
+            border: 1px solid var(--line);
+            border-radius: 3px;
+            background: var(--green-soft);
+            color: var(--green);
+        }
+
+        ul.tasks { list-style: none; border-top: 1px solid var(--ink); background: #fff; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+        ul.tasks li {
+            padding: 0.85rem 1.3rem;
+            border-bottom: 1px solid var(--line);
+            font-size: 0.9rem;
+            color: var(--muted);
+            position: relative;
+        }
+        ul.tasks li b { color: var(--ink); font-weight: 600; }
+        ul.tasks li code { font-family: var(--mono); font-size: 0.86em; color: var(--ink); }
+        ul.tasks li::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            background: transparent;
+        }
+        ul.tasks li:hover::before { background: var(--green); }
         .ok { color: var(--ok); }
+
+        footer {
+            background: var(--green);
+            color: rgba(255, 255, 255, 0.72);
+            padding: 1.6rem 2rem;
+            font-size: 0.78rem;
+        }
+
+        @media (max-width: 640px) {
+            .facts { grid-template-columns: 1fr; gap: 1rem; }
+            .table .row { grid-template-columns: 1fr; gap: 0.2rem; }
+        }
     </style>
 </head>
 <body>
     <header>
-        <span class="brand">intranet<span>.sudoers.lan</span></span>
-        <a class="back" href="/">← volver al portal</a>
+        <a class="brand" href="/">
+            <span class="mark">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 9.5 12 4l9 5.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6 11v6M10.5 11v6M13.5 11v6M18 11v6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M4 20h16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </span>
+            Banco Sudoers
+        </a>
+        <a class="back" href="/">← Volver al portal</a>
     </header>
 
     <div class="wrap">
-        <div class="headline">
-            <div class="avatar"><img src="joaquin.jpg" alt="Joaquin"></div>
-            <div>
-                <h1>Joaquin</h1>
-                <div class="role"><b>Admin del dominio</b> · grupo <code>admins</code></div>
-                <div class="badges">
-                    <span class="badge">usuario AD: joaquin</span>
-                    <span class="badge">git: Joaquin Felipez</span>
-                    <span class="badge">pc-joaquin · 192.168.0.50</span>
+        <div class="profile">
+            <p class="eyebrow">Ficha de administrador</p>
+            <div class="who">
+                <div class="avatar"><img src="joaquin.jpg" alt="Joaquin"></div>
+                <div>
+                    <h1>Joaquin</h1>
+                    <div class="role"><b>Admin del dominio</b> · grupo <code>admins</code></div>
+                </div>
+            </div>
+            <div class="facts">
+                <div>
+                    <div class="k">Usuario AD</div>
+                    <div class="v">joaquin</div>
+                </div>
+                <div>
+                    <div class="k">Identidad git</div>
+                    <div class="v">Joaquin Felipez</div>
+                </div>
+                <div>
+                    <div class="k">Equipo</div>
+                    <div class="v">pc-joaquin · 192.168.0.50</div>
                 </div>
             </div>
         </div>
 
-        <h2>Identidad en el dominio</h2>
-        <div class="box">
-            <table>
-                <tr><td>Usuario</td><td>joaquin</td></tr>
-                <tr><td>Grupos AD</td><td><span class="pills"><span class="pill">admins</span><span class="pill">sistemas</span><span class="pill">srv-files</span></span></td></tr>
-                <tr><td>Acceso SSH</td><td>permitido (AllowUsers) · solo desde admin_ips 192.168.0.50</td></tr>
-                <tr><td>Equipo</td><td>pc-joaquin — 192.168.0.50 (MAC f8:54:f6:e2:f1:d5, reservada en Kea)</td></tr>
-            </table>
+        <div class="block">
+            <h2>Identidad en el dominio</h2>
+            <div class="table">
+                <div class="row"><span class="k">Usuario</span><span class="v">joaquin</span></div>
+                <div class="row"><span class="k">Grupos AD</span><span class="v"><span class="pills"><span class="pill">admins</span><span class="pill">sistemas</span><span class="pill">srv-files</span></span></span></div>
+                <div class="row"><span class="k">Acceso SSH</span><span class="v">permitido (AllowUsers) · solo desde admin_ips 192.168.0.50</span></div>
+                <div class="row"><span class="k">Equipo</span><span class="v">pc-joaquin — 192.168.0.50 (MAC f8:54:f6:e2:f1:d5, reservada en Kea)</span></div>
+            </div>
         </div>
 
-        <h2>A cargo</h2>
-        <div class="box">
+        <div class="block">
+            <h2>A cargo</h2>
             <ul class="tasks">
                 <li>Impulsor y autor principal del repositorio <code>TSO-II-final</code> (diseño inicial + configuración del server).</li>
                 <li>Provisión del <b>AD DC (Samba 4 nativo)</b>: realm SUDOERS.LAN, DNS interno, reservas por MAC.</li>
