@@ -12,6 +12,12 @@ server/
 ├── nftables.conf    ← firewall red única 192.168.0.0/24 (política drop)
 ├── sshd_config      ← SSH endurecido (solo claves, solo admins)
 ├── chrony.conf      ← NTP de la red (los clientes sincronizan contra el DC)
+├── radius/          ← FreeRADIUS nativo (WiFi WPA2-Enterprise / 802.1X)
+│   ├── clients.conf     ← clientes RADIUS (router + localhost)
+│   ├── mod-mschap       ← MSCHAPv2 contra el AD vía ntlm_auth
+│   ├── tls-gen.sh       ← CA + cert EAP (PEAP)
+│   ├── radius-check.sh  ← sonda → radius.prom (Prometheus)
+│   └── README.md
 └── deploy.sh        ← valida y aplica los configs de forma segura
 ```
 
@@ -28,7 +34,10 @@ sudo bash server/deploy.sh
 1. **Firewall** nftables (valida con `nft -c`, respalda y recarga).
 2. **SSH** endurecido (respalda, valida con `sshd -t` y reinicia).
 3. **NTP** chrony (respalda, habilita y reinicia).
-4. **Contenedores**: valida `services/web/nginx.conf` (con `nginx -t` en
+4. **FreeRADIUS** WiFi 802.1X (instala si falta, `ntlm auth` en smb.conf,
+   configs con `RADIUS_SECRET`, certs EAP, valida con `freeradius -XC`,
+   arranca en 1812/udp e instala la sonda `radius-check.sh`).
+5. **Contenedores**: valida `services/web/nginx.conf` (con `nginx -t` en
    contenedor) y hace `docker compose up -d --build` desde la raíz del repo.
    Así el proxy web y el resto de servicios quedan al día.
 

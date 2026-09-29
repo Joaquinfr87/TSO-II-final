@@ -85,6 +85,7 @@ if [ -f /etc/samba/smb.conf ]; then
     echo "    smb.conf previo respaldado y retirado (${BAK})"
 fi
 
+# ntlm auth: requiere FreeRADIUS (WiFi 802.1X) para MSCHAPv2 vía ntlm_auth.
 samba-tool domain provision \
     --realm="${REALM}" \
     --domain="${NETBIOS}" \
@@ -94,7 +95,8 @@ samba-tool domain provision \
     --use-rfc2307 \
     --host-name="${DC_FQDN}" \
     --host-ip="${IP_SERVER}" \
-    --option="dns forwarder = ${DNS_FORWARDER}"
+    --option="dns forwarder = ${DNS_FORWARDER}" \
+    --option="ntlm auth = mschapv2-and-ntlmv2-only"
 
 echo "==> [5/7] recursos de archivo (shares AD)"
 mkdir -p /srv/samba/departamentos /srv/samba/homes /srv/samba/respaldo

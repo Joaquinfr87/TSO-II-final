@@ -1,13 +1,12 @@
-# clients/ — Guías para unir clientes al dominio — PENDIENTE
-
-Carpeta reservada para las guías de unión de equipos al AD.
+# clients/ — Guías para clientes (WiFi + unión al dominio)
 
 ## Plan
 
-| Archivo | Contenido (Fase 2) |
-| --- | --- |
-| `linux.md` | `realm join` + SSSD: auth Kerberos/LDAP, sudo por grupos AD, homes con `pam_mkhomedir`, NTP contra el DC |
-| `windows.md` | Unir Windows (contabilidad/marketing) al dominio `SUDOERS` (auth + SMB + Kerberos); alcance de GPO |
+| Archivo | Contenido | Estado |
+| --- | --- | --- |
+| `wifi.md` | WiFi `sudoers` con WPA2-Enterprise (PEAP/MSCHAPv2 + usuario AD) | ✅ |
+| `linux.md` | `realm join` + SSSD: auth Kerberos/LDAP, sudo por grupos AD, homes con `pam_mkhomedir`, NTP contra el DC | pendiente (Fase 2) |
+| `windows.md` | Unir Windows (contabilidad/marketing) al dominio `SUDOERS` (auth + SMB + Kerberos); alcance de GPO | pendiente (Fase 2) |
 
 ## Pendiente de desarrollo
 

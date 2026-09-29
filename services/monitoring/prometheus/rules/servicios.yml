@@ -1,6 +1,7 @@
 # ===================================================================
-# servicios.yml — Alertas de servicios (blackbox_exporter)
+# servicios.yml — Alertas de servicios (blackbox_exporter + textfile)
 #   probe_success == 0 → el servicio no respondió en su puerto/URL.
+#   tso_radius_up      → server/radius/radius-check.sh (cron 5 min).
 #   validar: promtool check rules services/monitoring/prometheus/rules/servicios.yml
 # ===================================================================
 groups:
@@ -26,3 +27,23 @@ groups:
         annotations:
           resumen: "{{ $labels.instance }} responde lento ({{ $value | humanizeDuration }})"
           detalle: "Latencia sostenida >2s: revisá red y carga del host."
+
+      - alert: RadiusNoResponde
+        expr: tso_radius_up == 0
+        for: 3m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "FreeRADIUS de dc1 no responde (WiFi 802.1X caído)"
+          detalle: >-
+            En dc1: systemctl status freeradius; journalctl -u freeradius -n 50;
+            sudo freeradius -XC. Sin respuesta no se puede conectar nadie al WiFi.
+
+      - alert: RadiusNuncaVerificado
+        expr: absent(tso_radius_up)
+        for: 6h
+        labels:
+          severidad: media
+        annotations:
+          resumen: "Nunca corrió la sonda de FreeRADIUS (no hay métricas tso_radius_up)"
+          detalle: "Re-corré el deploy (instala /etc/cron.d/tso-radius): sudo bash server/deploy.sh"

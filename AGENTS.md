@@ -71,6 +71,8 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
    `445`, `139` (+ `636` LDAPS opcional). Son del DC nativo.
 5. **Sin secretos en git:** `.env` ignorado; en el repo solo `.env.example`.
 6. **Un solo `docker-compose.yml`** en la raíz declara todos los servicios.
+7. **FreeRADIUS corre NATIVO en dc1** (necesita `ntlm_auth`/winbind local
+   del DC; mismo argumento de fragilidad que el DC, nunca en contenedor).
 
 ## Servicios (resumen)
 
@@ -88,7 +90,9 @@ máquina Debian** ("laptop siempre encendida", estilo lab). Es la evolución
 | Impresión | CUPS | CONTENEDOR (`services/print`) |
 | Gestión Docker | Portainer | CONTENEDOR |
 | Monitoreo | Zabbix (server + web; agents en hosts) | Server Debian físico `zabbix` (`192.168.0.3`) — `services/zabbix` (compose propio) |
-| Backup | restic/borg | NATIVO cron |
+| Métricas + alertas por mail | Prometheus + Grafana + Alertmanager (Grafana en `grafana.sudoers.lan`) | CONTENEDOR (`services/monitoring`, dc1) |
+| WiFi 802.1X (WPA2-Enterprise) | FreeRADIUS → `ntlm_auth` → AD (usuarios del dominio) | NATIVO (`server/radius/`) |
+| Backup | restic (`server/backup.sh` + `restore.sh`, cron) | NATIVO |
 
 ## Estructura del repo
 
@@ -99,9 +103,9 @@ TSO-II-final/
 ├── .env.example
 ├── README.md            ← índice corto → docs/
 ├── dc/                  ← Samba AD DC nativo (provision.sh, shares.conf, krb5, scripts)
-├── server/              ← host: nftables, sshd, chrony, deploy
-├── clients/             ← guías para unir clientes Linux/Windows al dominio (pendiente)
-├── services/            ← por servicio contenedor (dhcp, web, mail, webmail, db, print; monitoring/apps pendientes)
+├── server/              ← host: nftables, sshd, chrony, radius/ (WiFi 802.1X), deploy
+├── clients/             ← guías de clientes (wifi.md ✓; linux/windows pendientes)
+├── services/            ← por servicio contenedor (dhcp, web, mail, webmail, db, print, monitoring; apps pendientes)
 └── docs/                ← TODA la documentación (arquitectura, futuro: red, seguridad, backup…)
 
 Máquinas: dc1 (host físico, 192.168.0.2) + zabbix (server Debian físico dedicado, 192.168.0.3).
@@ -121,23 +125,22 @@ docker compose up -d <servicio>         # servicio puntual
 
 ## Pendientes (próximos pasos)
 
-1. **Backups (restic u otro):** no existe nada todavía (solo el hueco en la
-   tabla de servicios). Definir: qué se copia (shares `/srv/samba`, `.env`,
-   configs de `dc/` y `server/`, volumen Postgres de Zabbix en `.3`), destino
-   (disco externo/NAS), retención, y **probar el restore**. Fue la decisión
-   "cómo" la que falta; `restic` con cron nativo es el candidato.
-2. **Monitoreo → alertas por mail:** Zabbix ya corre y recolecta
+1. **Monitoreo Zabbix → alertas por mail:** Zabbix ya corre y recolecta
    (hosts, templates propios y agents), pero **los triggers no mandan
    correos**: las acciones existen (`TSO - Servicio o contenedor caído
    (admins)` y `TSO - Servicio de Zabbix (re)iniciado (todos los usuarios)`)
    y los eventos se generan, pero `alert.get` queda en 0. Cerrar ese debug
    (condición tag/valor de la acción, `mediatypeid`, prueba E2E hasta ver el
    mail saliendo por Postfix de dc1) y sumar agents a los clientes.
-3. **WiFi "sudoers" con usuario y contraseña:** falta diseñar/implementar la
-   conexión a la red inalámbrica autenticando con usuario y contraseña (si
-   es contra AD, evaluar 802.1X/WPA2-Enterprise + FreeRADIUS; ojo: el
-   router actual TL-WR850N v3 no soporta 802.1X, quizás haga falta un AP
-   que sí o WPA2-PSK por grupo).
+   (Las alertas del stack Prometheus/Alertmanager **sí** mandan mail.)
+2. **WiFi "sudoers" 802.1X — implementado, falta desplegar:** el repo ya
+   trae FreeRADIUS nativo (`server/radius/` + deploy). Pendiente **en dc1**:
+   `git pull && sudo bash server/deploy.sh`, poner el router en
+   WPA/WPA2-Enterprise (Radius Server IP `192.168.0.2`, puerto `1812`,
+   password = `RADIUS_SECRET` de `.env`) y probar un cliente real
+   (ver `clients/wifi.md`; prueba previa: `radtest -t mschap2` en dc1).
+3. **Clientes al dominio:** `clients/linux.md` (SSSD/realm join) y
+   `clients/windows.md` (unión de Windows al AD) — Fase 2.
 
 ## Documentación detallada
 

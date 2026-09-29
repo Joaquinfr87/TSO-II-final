@@ -8,15 +8,16 @@ set -euo pipefail
 #   git pull
 #   sudo bash server/deploy.sh
 #
-# Aplica config nativa (firewall, ssh, ntp) y luego levanta/actualiza
-# los contenedores (docker compose) con su configuración versionada.
+# Aplica config nativa (firewall, ssh, ntp, FreeRADIUS/WiFi 802.1X) y
+# luego levanta/actualiza los contenedores (docker compose) con su
+# configuración versionada.
 # Hace validaciones antes de aplicar para no dejar el server sin acceso.
 # ===================================================================
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
 
-echo "==> [1/6] Validando sintaxis de nftables.conf ..."
+echo "==> [1/7] Validando sintaxis de nftables.conf ..."
 if sudo nft -c -f "$DIR/nftables.conf" 2>/dev/null; then
     echo "    sintaxis OK"
 else
@@ -25,7 +26,7 @@ else
     exit 1
 fi
 
-echo "==> [2/6] Aplicando firewall ..."
+echo "==> [2/7] Aplicando firewall ..."
 sudo cp "$DIR/nftables.conf" /etc/nftables.conf
 # Borra SOLO nuestra tabla (inet filter) para no arrastrar las cadenas
 # internas de Docker. Un "flush ruleset" global rompería el NAT de los
@@ -35,7 +36,7 @@ sudo nft -f /etc/nftables.conf
 sudo systemctl enable nftables >/dev/null 2>&1 || true
 echo "    firewall activo (tabla inet filter)"
 
-echo "==> [3/6] Respaldo y validación de sshd_config ..."
+echo "==> [3/7] Respaldo y validación de sshd_config ..."
 BACKUP="${BACKUP:-}"
 if [ -f /etc/ssh/sshd_config ]; then
     BACKUP="/etc/ssh/sshd_config.bak.$(date +%Y%m%d%H%M%S)"
@@ -44,7 +45,7 @@ if [ -f /etc/ssh/sshd_config ]; then
 fi
 sudo cp "$DIR/sshd_config" /etc/ssh/sshd_config
 
-echo "==> [4/6] Verificando y reiniciando ssh ..."
+echo "==> [4/7] Verificando y reiniciando ssh ..."
 if sudo sshd -t; then
     sudo systemctl restart ssh
     echo "    ssh reiniciado correctamente"
@@ -55,7 +56,7 @@ else
     exit 1
 fi
 
-echo "==> [5/6] Chrony (NTP) ..."
+echo "==> [5/7] Chrony (NTP) ..."
 if [ -f /etc/chrony/chrony.conf ]; then
     BACKUP_CHRONY="/etc/chrony/chrony.conf.bak.$(date +%Y%m%d%H%M%S)"
     sudo cp /etc/chrony/chrony.conf "$BACKUP_CHRONY"
@@ -66,7 +67,144 @@ sudo systemctl enable --now chrony
 sudo systemctl restart chrony
 echo "    chrony reiniciado (servidor NTP de la LAN)"
 
-echo "==> [6/6] Contenedores (docker compose) ..."
+echo "==> [6/7] FreeRADIUS (WiFi WPA2-Enterprise / 802.1X) ..."
+RAD_SRC="$DIR/radius"
+RADD_DIR=/etc/freeradius/3.0
+
+# --- RADIUS_SECRET desde .env (secreto compartido con el router) ---
+RAD_SECRET=""
+AD_NB="SUDOERS"
+if [ -f "$ROOT/.env" ]; then
+    RAD_SECRET="$(grep -E '^RADIUS_SECRET=' "$ROOT/.env" | tail -1 | cut -d= -f2- | tr -d "\"'" | xargs)"
+    AD_NB="$(grep -E '^AD_NETBIOS=' "$ROOT/.env" | tail -1 | cut -d= -f2- | tr -d "\"'" | xargs)"
+fi
+AD_NB="${AD_NB:-SUDOERS}"
+if [ -z "$RAD_SECRET" ]; then
+    echo "    ERROR: falta RADIUS_SECRET en $ROOT/.env (secreto RADIUS del router)."
+    echo "      echo \"RADIUS_SECRET=\$(openssl rand -hex 16)\" >> $ROOT/.env"
+    exit 1
+fi
+if ! printf '%s' "$RAD_SECRET" | grep -qE '^[A-Za-z0-9]{16,64}$'; then
+    echo "    ERROR: RADIUS_SECRET debe ser alfanumérico, 16-64 caracteres."
+    echo "      echo \"RADIUS_SECRET=\$(openssl rand -hex 16)\" >> $ROOT/.env"
+    exit 1
+fi
+
+# --- paquetes: freeradius + utilidades + ntlm_auth ---
+RAD_PKGS=()
+command -v freeradius >/dev/null 2>&1 || RAD_PKGS+=(freeradius)
+command -v radclient >/dev/null 2>&1 || RAD_PKGS+=(freeradius-utils)
+command -v ntlm_auth >/dev/null 2>&1 || RAD_PKGS+=(samba-common-bin)
+if [ "${#RAD_PKGS[@]}" -gt 0 ]; then
+    echo "    instalando: ${RAD_PKGS[*]}"
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${RAD_PKGS[@]}"
+fi
+
+# --- smb.conf (DC): habilita MSCHAPv2 para ntlm_auth ---
+if command -v testparm >/dev/null 2>&1; then
+    if TP_OUT="$(sudo testparm -s 2>/dev/null)"; then
+        if grep -qi 'mschapv2-and-ntlmv2-only' <<<"$TP_OUT"; then
+            echo "    smb.conf: ntlm auth ya habilitado (mschapv2-and-ntlmv2-only)"
+        else
+            if grep -qiE '^[[:space:]]*ntlm auth[[:space:]]*=' /etc/samba/smb.conf 2>/dev/null; then
+                sudo sed -i -E 's/^[[:space:]]*ntlm auth[[:space:]]*=.*/ntlm auth = mschapv2-and-ntlmv2-only/I' /etc/samba/smb.conf
+            else
+                printf '\n# Habilita MSCHAPv2 para FreeRADIUS (WiFi 802.1X) — server/deploy.sh\nntlm auth = mschapv2-and-ntlmv2-only\n' \
+                    | sudo tee -a /etc/samba/smb.conf >/dev/null
+            fi
+            echo "    smb.conf: ntlm auth = mschapv2-and-ntlmv2-only → reiniciando el DC (~5s de corte AD)"
+            sudo systemctl restart samba-ad-dc 2>/dev/null || sudo systemctl restart samba
+        fi
+    else
+        echo "    ERROR: testparm falló → smb.conf inválido; NO se toca ni se reinicia el DC."
+        exit 1
+    fi
+else
+    echo "    ATENCIÓN: testparm no disponible → no se verifica 'ntlm auth' en smb.conf."
+fi
+
+# --- usuario de FreeRADIUS vs grupo winbindd_priv del DC ---
+FR_USER="$(getent passwd freerad | cut -d: -f1 || true)"
+FR_USER="${FR_USER:-$(getent passwd radiusd | cut -d: -f1 || true)}"
+if [ -z "$FR_USER" ]; then
+    echo "    ATENCIÓN: no encontré el usuario freerad/radiusd (¿se instaló freeradius?)."
+elif getent group winbindd_priv >/dev/null 2>&1; then
+    if id -nG "$FR_USER" | grep -qw winbindd_priv; then
+        echo "    $FR_USER ya está en winbindd_priv"
+    else
+        sudo usermod -aG winbindd_priv "$FR_USER"
+        echo "    $FR_USER agregado al grupo winbindd_priv (acceso a ntlm_auth/winbind)"
+    fi
+else
+    echo "    ATENCIÓN: no existe el grupo winbindd_priv (¿corre winbindd en el DC?)."
+    echo "      Verificar en dc1:  ls -ld /run/samba/*winbind*  y  ps aux | grep winbind"
+fi
+
+# --- configs versionados (secreto y realm inyectados) ---
+echo "    aplicando clients.conf + mods-enabled/mschap"
+sudo sed "s|@RADIUS_SECRET@|${RAD_SECRET}|g" "$RAD_SRC/clients.conf" \
+    | sudo tee "$RADD_DIR/clients.conf" >/dev/null
+# En Debian mods-enabled/mschap es un symlink a mods-available: se retira
+# para dejar un archivo regular con nuestra config (mods-available queda
+# intacto como conffile del paquete).
+sudo rm -f "$RADD_DIR/mods-enabled/mschap"
+sudo sed "s|@AD_NETBIOS@|${AD_NB}|g" "$RAD_SRC/mod-mschap" \
+    | sudo tee "$RADD_DIR/mods-enabled/mschap" >/dev/null
+# PEAP por defecto (los clientes WiFi usan PEAP/MSCHAPv2)
+if ! sudo grep -qE '^default_eap_type = peap' "$RADD_DIR/mods-available/eap" 2>/dev/null; then
+    sudo sed -i 's/^default_eap_type = .*/default_eap_type = peap/' "$RADD_DIR/mods-available/eap"
+    echo "    eap: default_eap_type = peap"
+fi
+
+# --- certs EAP (CA interna + server.pem) ---
+if [ ! -s "$RADD_DIR/certs/ca.pem" ] || [ ! -s "$RADD_DIR/certs/server.pem" ]; then
+    echo "    generando certs EAP (CA RADIUS + server.pem) ..."
+    sudo bash "$RAD_SRC/tls-gen.sh"
+else
+    echo "    certs EAP ya existentes ($RADD_DIR/certs/)"
+fi
+
+# --- validar config y (re)arrancar ---
+echo "    validando freeradius -XC ..."
+if FR_CHECK="$(sudo freeradius -XC 2>&1)"; then
+    echo "    config de FreeRADIUS OK"
+else
+    echo "    ERROR: freeradius -XC falló:"
+    printf '%s\n' "$FR_CHECK" | tail -n 15
+    echo "    NO se reinicia FreeRADIUS."
+    exit 1
+fi
+sudo systemctl enable freeradius >/dev/null 2>&1 || true
+sudo systemctl restart freeradius
+sleep 1
+if sudo ss -Hlnu | grep -qE ':1812[[:space:]]'; then
+    echo "    freeradius activo (1812/udp)"
+else
+    echo "    ERROR: freeradius no está escuchando en 1812/udp. Revisar:"
+    echo "      journalctl -u freeradius -n 50"
+    exit 1
+fi
+
+# --- sonda para Prometheus (radius.prom + cron cada 5 min) ---
+sudo mkdir -p /var/lib/tso-backup
+sudo tee /etc/cron.d/tso-radius >/dev/null <<EOF
+# Generado por server/deploy.sh — sonda de FreeRADIUS para Prometheus
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=root
+*/5 * * * * root $RAD_SRC/radius-check.sh
+EOF
+sudo chmod 644 /etc/cron.d/tso-radius
+sudo bash "$RAD_SRC/radius-check.sh"
+echo "    sonda RADIUS instalada (/etc/cron.d/tso-radius → radius.prom)"
+
+echo "    Prueba manual de autenticación (en dc1):"
+echo "      sudo radtest -t mschap2 <usuario> '<clave AD>' 127.0.0.1:1812 testing123"
+echo "    Router (UI): Wireless → Security → WPA/WPA2-Enterprise →"
+echo "      IP 192.168.0.2, puerto 1812, password = RADIUS_SECRET (.env)"
+
+echo "==> [7/7] Contenedores (docker compose) ..."
 if [ ! -f "$ROOT/docker-compose.yml" ]; then
     echo "    ERROR: no se encontró $ROOT/docker-compose.yml"
     exit 1
@@ -180,6 +318,7 @@ echo "  Deploy completado."
 echo "  * Firewall nftables: tabla inet filter aplicada y habilitada"
 echo "  * SSH: config endurecida (claves, sin root, solo admins)"
 echo "  * Chrony: sirviendo hora a 192.168.0.0/24"
+echo "  * FreeRADIUS: 1812/udp (WiFi 802.1X; sonda cada 5 min → Prometheus)"
 echo "  * Contenedores: docker compose up -d --build (proxy web actualizado)"
 echo "  * DNS: si hay nombres nuevos (david/nicolas), agregar los A hacia"
 echo "    192.168.0.2 (ver docs/publicar-servicios-admin.md y dc/dns-records.sh)"

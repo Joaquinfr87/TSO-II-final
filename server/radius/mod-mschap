@@ -1,0 +1,28 @@
+# ===================================================================
+# mod-mschap — MS-CHAPv2 contra el AD vía ntlm_auth (winbind)
+#
+# server/deploy.sh instala este archivo como
+#   /etc/freeradius/3.0/mods-enabled/mschap
+# inyectando @AD_NETBIOS@ desde AD_NETBIOS de .env.
+#
+# Derivado de raddb/mods-available/mschap (FreeRADIUS 3.2.x).
+#
+# Requisitos (los valida server/deploy.sh):
+#   * smb.conf (DC): ntlm auth = mschapv2-and-ntlmv2-only
+#   * usuario de FreeRADIUS (freerad) en el grupo winbindd_priv
+#   * ntlm_auth (paquete samba-common-bin) y winbindd operativos
+# ===================================================================
+mschap {
+	# Claves MPPE para el 4-way handshake de WPA2.
+	use_mppe = yes
+
+	# Acepta "SUDOERS\usuario" ademas de "usuario" y "usuario@realm".
+	with_ntdomain_hack = yes
+
+	# --allow-mschapv2: Samba moderno lo exige para MSCHAPv2 vía ntlm_auth.
+	# --challenge/--nt-response: ntlm_auth verifica y devuelve la NT-Key.
+	ntlm_auth = "/usr/bin/ntlm_auth --request-nt-key --allow-mschapv2 --username=%{%{Stripped-User-Name}:-%{%{User-Name}:-None}} --domain=@AD_NETBIOS@ --challenge=%{%{mschap:Challenge}:-00} --nt-response=%{%{mschap:NT-Response}:-00}"
+
+	ntlm_auth_timeout = 10
+	allow_retry = yes
+}
