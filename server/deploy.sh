@@ -101,17 +101,31 @@ if [ "${#RAD_PKGS[@]}" -gt 0 ]; then
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${RAD_PKGS[@]}"
 fi
 
-# --- smb.conf (DC): habilita MSCHAPv2 para ntlm_auth ---
+# --- smb.conf (DC): habilita MSCHAPv2 para ntlm_auth (DEBE quedar en [global]; si la
+# línea cae en una sección de share, Samba la ignora y avisa "found in service section") ---
 if command -v testparm >/dev/null 2>&1; then
     if TP_OUT="$(sudo testparm -s 2>/dev/null)"; then
-        if grep -qi 'mschapv2-and-ntlmv2-only' <<<"$TP_OUT"; then
-            echo "    smb.conf: ntlm auth ya habilitado (mschapv2-and-ntlmv2-only)"
+        # ¿en qué sección quedó 'ntlm auth' según testparm?
+        NTL_SEC="$(awk '/^\[/{sec=$0} /ntlm auth/{print sec}' <<<"$TP_OUT" | tail -1)"
+        if [ "$NTL_SEC" = "[global]" ] && grep -qi 'mschapv2-and-ntlmv2-only' <<<"$TP_OUT"; then
+            echo "    smb.conf: ntlm auth = mschapv2-and-ntlmv2-only (correcto en [global])"
         else
-            if grep -qiE '^[[:space:]]*ntlm auth[[:space:]]*=' /etc/samba/smb.conf 2>/dev/null; then
-                sudo sed -i -E 's/^[[:space:]]*ntlm auth[[:space:]]*=.*/ntlm auth = mschapv2-and-ntlmv2-only/I' /etc/samba/smb.conf
-            else
-                printf '\n# Habilita MSCHAPv2 para FreeRADIUS (WiFi 802.1X) — server/deploy.sh\nntlm auth = mschapv2-and-ntlmv2-only\n' \
-                    | sudo tee -a /etc/samba/smb.conf >/dev/null
+            sudo cp -a /etc/samba/smb.conf /etc/samba/smb.conf.bak-tso-radius
+            # borra la línea vieja y su comentario (aunque estén mal ubicados en un
+            # share) y reinserta recién después de [global]
+            sudo sed -i -E -e '/^[[:space:]]*ntlm auth[[:space:]]*=/d' \
+                -e '/Habilita MSCHAPv2 para FreeRADIUS/d' /etc/samba/smb.conf
+            sudo sed -i '0,/^\[global\]/{
+/^\[global\]/a\
+# Habilita MSCHAPv2 para FreeRADIUS (WiFi 802.1X) — server/deploy.sh\
+ntlm auth = mschapv2-and-ntlmv2-only
+}' /etc/samba/smb.conf
+            TP_OUT="$(sudo testparm -s 2>/dev/null)" || true
+            NTL_SEC="$(awk '/^\[/{sec=$0} /ntlm auth/{print sec}' <<<"$TP_OUT" | tail -1)"
+            if [ "$NTL_SEC" != "[global]" ]; then
+                sudo cp -a /etc/samba/smb.conf.bak-tso-radius /etc/samba/smb.conf
+                echo "    ERROR: no pude ubicar 'ntlm auth' en [global]; smb.conf restaurado."
+                exit 1
             fi
             echo "    smb.conf: ntlm auth = mschapv2-and-ntlmv2-only → reiniciando el DC (~5s de corte AD)"
             sudo systemctl restart samba-ad-dc 2>/dev/null || sudo systemctl restart samba
@@ -200,7 +214,7 @@ sudo bash "$RAD_SRC/radius-check.sh"
 echo "    sonda RADIUS instalada (/etc/cron.d/tso-radius → radius.prom)"
 
 echo "    Prueba manual de autenticación (en dc1):"
-echo "      sudo radtest -t mschap2 <usuario> '<clave AD>' 127.0.0.1:1812 testing123"
+echo "      sudo radtest -t mschap <usuario> '<clave AD>' 127.0.0.1:1812 0 testing123"
 echo "    Router (UI): Wireless → Security → WPA/WPA2-Enterprise →"
 echo "      IP 192.168.0.2, puerto 1812, password = RADIUS_SECRET (.env)"
 

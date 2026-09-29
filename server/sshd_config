@@ -42,3 +42,7 @@ SyslogFacility AUTH
 # ─── Puerto y red ───
 Port 22
 ListenAddress 192.168.0.2
+# Red de gestión alternativa (p. ej. cuando la LAN principal o el WiFi
+# quedan inaccesibles). OJO: esta IP DEBE existir en una interface del
+# server; si no, sshd no arranca y perdés el SSH.
+ListenAddress 192.168.100.39

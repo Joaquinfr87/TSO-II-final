@@ -40,7 +40,7 @@ Wireless → Security → **WPA/WPA2-Enterprise**:
 sudo ss -ulnp | grep 1812
 
 # 2) autenticación real contra el AD (MSCHAPv2, no necesita WiFi)
-sudo radtest -t mschap2 joaquin '<clave AD>' 127.0.0.1:1812 testing123
+sudo radtest -t mschap joaquin '<clave AD>' 127.0.0.1:1812 0 testing123
 #    → Access-Accept = OK; Access-Reject con clave mala = también OK
 #      (el server respondió); "No reply" = winbind/ntlm_auth roto.
 

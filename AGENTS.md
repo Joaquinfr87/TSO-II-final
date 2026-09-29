@@ -138,7 +138,7 @@ docker compose up -d <servicio>         # servicio puntual
    `git pull && sudo bash server/deploy.sh`, poner el router en
    WPA/WPA2-Enterprise (Radius Server IP `192.168.0.2`, puerto `1812`,
    password = `RADIUS_SECRET` de `.env`) y probar un cliente real
-   (ver `clients/wifi.md`; prueba previa: `radtest -t mschap2` en dc1).
+   (ver `clients/wifi.md`; prueba previa: `radtest -t mschap` en dc1).
 3. **Clientes al dominio:** `clients/linux.md` (SSSD/realm join) y
    `clients/windows.md` (unión de Windows al AD) — Fase 2.
 

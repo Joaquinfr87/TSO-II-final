@@ -68,6 +68,6 @@ network={
 En dc1, con cualquier usuario del dominio:
 
 ```bash
-sudo radtest -t mschap2 joaquin '<clave>' 127.0.0.1:1812 testing123
+sudo radtest -t mschap joaquin '<clave>' 127.0.0.1:1812 0 testing123
 # Access-Accept → todo el camino (FreeRADIUS + ntlm_auth + AD) funciona
 ```
