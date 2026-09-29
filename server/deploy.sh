@@ -165,11 +165,23 @@ sudo sed "s|@RADIUS_SECRET@|${RAD_SECRET}|g" "$RAD_SRC/clients.conf" \
 sudo rm -f "$RADD_DIR/mods-enabled/mschap"
 sudo sed "s|@AD_NETBIOS@|${AD_NB}|g" "$RAD_SRC/mod-mschap" \
     | sudo tee "$RADD_DIR/mods-enabled/mschap" >/dev/null
-# PEAP por defecto (los clientes WiFi usan PEAP/MSCHAPv2)
-if ! sudo grep -qE '^default_eap_type = peap' "$RADD_DIR/mods-available/eap" 2>/dev/null; then
-    sudo sed -i 's/^default_eap_type = .*/default_eap_type = peap/' "$RADD_DIR/mods-available/eap"
-    echo "    eap: default_eap_type = peap"
+# PEAP por defecto (los clientes WiFi usan PEAP/MSCHAPv2). OJO: la línea va
+# indentada con tab dentro del bloque `eap { }` → el patrón tolera espacios.
+EAP_FILES=("$RADD_DIR/mods-available/eap")
+if [ -e "$RADD_DIR/mods-enabled/eap" ] && [ ! -L "$RADD_DIR/mods-enabled/eap" ]; then
+    EAP_FILES+=("$RADD_DIR/mods-enabled/eap")
 fi
+for _eap in "${EAP_FILES[@]}"; do
+    [ -f "$_eap" ] || continue
+    if ! sudo grep -qE '^[[:space:]]*default_eap_type[[:space:]]*=[[:space:]]*peap' "$_eap" 2>/dev/null; then
+        sudo sed -i -E 's/^([[:space:]]*)default_eap_type[[:space:]]*=.*/\1default_eap_type = peap/' "$_eap"
+        if sudo grep -qE '^[[:space:]]*default_eap_type[[:space:]]*=[[:space:]]*peap' "$_eap" 2>/dev/null; then
+            echo "    eap: default_eap_type = peap ($_eap)"
+        else
+            echo "    ATENCIÓN: no pude setear default_eap_type = peap en $_eap (revisar a mano)."
+        fi
+    fi
+done
 
 # --- certs EAP (CA interna + server.pem) ---
 if [ ! -s "$RADD_DIR/certs/ca.pem" ] || [ ! -s "$RADD_DIR/certs/server.pem" ]; then
