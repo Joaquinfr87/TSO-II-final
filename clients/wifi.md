@@ -38,14 +38,20 @@ sudo cp radius-ca.der /usr/local/share/ca-certificates/radius-sudoers.crt
 sudo update-ca-certificates          # Debian/Ubuntu
 
 sudo nmcli connection add type wifi con-name sudoers ssid sudoers \
-    wifi-sec.key-mgmt wpa-eap 802-1eap.method PEAP \
-    802-1x.identity 'joaquin@sudoers.lan' \
+    wifi-sec.key-mgmt wpa-eap \
+    802-1x.eap peap \
+    802-1x.identity 'joaquin' \
     802-1x.phase2-auth mschapv2 \
+    802-1x.password '<clave AD>' \
+    802-1x.password-flags 0 \
     802-1x.ca-cert /usr/local/share/ca-certificates/radius-sudoers.crt \
     802-1x.domain-suffix-match sudoers.lan
 
 sudo nmcli connection up sudoers
 ```
+
+El identity puede ser `joaquin`, `SUDOERS\joaquin` o `joaquin@sudoers.lan`
+(la capa interna MSCHAPv2 usa el usuario simple).
 
 ## 3) Linux sin NetworkManager (`wpa_supplicant`)
 
