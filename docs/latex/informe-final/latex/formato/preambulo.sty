@@ -136,22 +136,29 @@
       }%
     }%
   \end{lrbox}%
+  \par
   \vspace{12pt}%
   \noindent
-  \if\relax\detokenize{#1}\relax
-    \captionsetup{width=\linewidth}\captionof{figure}{#2}%
-  \else
-    \captionsetup{width=\linewidth}\captionof{figure}{#2}\label{#1}%
-  \fi
+  % Bloque indivisible: evita que el pie quede en una página y la imagen en otra.
+  \begin{minipage}{\linewidth}%
+    \if\relax\detokenize{#1}\relax
+      \captionsetup{width=\linewidth}\captionof{figure}{#2}%
+    \else
+      \captionsetup{width=\linewidth}\captionof{figure}{#2}\label{#1}%
+    \fi
+    \par
+    \begin{center}%
+      \parbox{\wd\cajaContenido}{%
+        \setstretch{1}%
+        \usebox{\cajaContenido}%
+      }%
+    \end{center}%
+    \vspace{6pt}%
+    {\centering\setstretch{1}\footnotesize\textbf{FUENTE:} #4\par}%
+  \end{minipage}%
   \par
-  \begin{center}%
-    \parbox{\wd\cajaContenido}{%
-      \setstretch{1}%
-      \usebox{\cajaContenido}%
-    }%
-  \end{center}%
-  \vspace{6pt}%
-  {\centering\setstretch{1}\footnotesize\textbf{FUENTE:} #4\par}%
+  % Separa la fuente del texto que sigue (equivalente al \vspace del título).
+  \addvspace{12pt}%
 }
 
 \newsavebox{\imagenBox}

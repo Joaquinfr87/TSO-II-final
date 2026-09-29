@@ -5,6 +5,9 @@
 data/
 volumes/
 
+# Certificados TLS autofirmados (contienen llaves privadas)
+services/web/tls/
+
 # Logs locales
 *.log
 
