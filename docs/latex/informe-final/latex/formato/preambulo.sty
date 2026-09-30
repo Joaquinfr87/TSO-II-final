@@ -29,6 +29,11 @@
 
 % --- Márgenes de 1 pulgada en papel A4 (APA 7) ------------------------------
 \RequirePackage[a4paper,top=1in,bottom=1in,left=1in,right=1in]{geometry}
+% Fuerza tamaño A4 en el PDF generado (pdflatex puede ignorar a4paper sin esto)
+\AtBeginDocument{%
+  \pdfpagewidth=210mm%
+  \pdfpageheight=297mm%
+}
 
 % --- Interlineado doble (APA 7) ---------------------------------------------
 \RequirePackage[doublespacing]{setspace}
@@ -270,7 +275,7 @@
 \renewcommand*\l@figure[2]{\entradaIndiceNum{\textbf{FIGURA }\ignorespaces#1}{#2}}
 \makeatother
 \newcommand{\indicesCompactos}{%
-  \setstretch{1.5}%
+  \setstretch{1.3}%
   \setlength{\parskip}{1pt}%
 }
 
